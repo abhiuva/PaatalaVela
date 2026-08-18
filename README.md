@@ -147,14 +147,39 @@ Set `YOUTUBE_API_KEY` to enable the admin “Check availability” action. Witho
 
 The public radio can render from local fallback data without Supabase. Production admin, song requests, takedown storage, sponsorship storage and analytics require Supabase environment variables configured in the hosting provider.
 
-Deploy with any Next.js-compatible host:
+### Netlify
 
-```bash
-npm run build
-npm run start
+Import the root-level repository into Netlify and use these settings:
+
+| Setting | Value |
+| --- | --- |
+| Base directory | blank |
+| Package directory | blank |
+| Build command | `npm run build` |
+| Publish directory | `.next` |
+| Functions directory | blank |
+| Runtime | Next.js |
+
+Netlify's Next.js/OpenNext runtime generates the server functions required for SSR, route handlers, Server Actions and Supabase Auth. Do not configure a custom Functions directory or use a static export.
+
+Configure these environment-variable names in Netlify without committing their values:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SITE_URL
+NEXT_PUBLIC_POSTHOG_KEY
+NEXT_PUBLIC_POSTHOG_HOST
+NEXT_PUBLIC_APP_VERSION
+SUPABASE_SERVICE_ROLE_KEY
+YOUTUBE_API_KEY
+ANALYTICS_INGESTION_SECRET
+ANALYTICS_RETENTION_DAYS
+SENTIMENT_API_URL
+SENTIMENT_API_KEY
 ```
 
-For Vercel, import the repository and keep the default Next.js settings.
+Keep `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `ANALYTICS_INGESTION_SECRET` and `SENTIMENT_API_KEY` server-only. Set `NEXT_PUBLIC_SITE_URL` to the final HTTPS site URL, then add that URL and its `/admin/login` callback to the Supabase Auth URL configuration.
 
 ## More Documentation
 
