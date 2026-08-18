@@ -26,6 +26,8 @@ const EXPECTED_TABLES = [
   "daily_sponsor_metrics",
   "song_requests",
   "youtube_import_queue",
+  "feedback_submissions",
+  "active_listener_sessions",
 ];
 
 function loadEnvLocal() {
@@ -163,6 +165,7 @@ async function main() {
   const publicProfiles = await anon.from("admin_profiles").select("id").limit(1);
   const publicTakedowns = await anon.from("takedown_requests").select("id").limit(1);
   const publicImportQueue = await anon.from("youtube_import_queue").select("id").limit(1);
+  const publicPresence = await anon.from("active_listener_sessions").select("session_hash").limit(1);
   const publicChannelOk = !publicChannels.error;
   const publicPlayableSongsOk = !publicPlayableSongs.error && (publicPlayableSongs.data ?? []).length > 0;
   const publicAssignmentsOk = !publicAssignments.error && (publicAssignments.data ?? []).some((assignment) => {
@@ -173,6 +176,7 @@ async function main() {
   const profilesRestricted = Boolean(publicProfiles.error) || (publicProfiles.data ?? []).length === 0;
   const takedownsRestricted = Boolean(publicTakedowns.error) || (publicTakedowns.data ?? []).length === 0;
   const importQueueRestricted = Boolean(publicImportQueue.error) || (publicImportQueue.data ?? []).length === 0;
+  const presenceRestricted = Boolean(publicPresence.error) || (publicPresence.data ?? []).length === 0;
   const rlsDetails = [
     publicChannels.error ? `channels: ${publicChannels.error.message}` : "active channels readable",
     publicPlayableSongs.error ? `songs: ${publicPlayableSongs.error.message}` : `playable songs readable: ${(publicPlayableSongs.data ?? []).length}`,
@@ -180,8 +184,9 @@ async function main() {
     profilesRestricted ? "admin_profiles restricted" : "admin_profiles exposed rows",
     takedownsRestricted ? "takedown_requests restricted" : "takedown_requests exposed rows",
     importQueueRestricted ? "youtube_import_queue restricted" : "youtube_import_queue exposed rows",
+    presenceRestricted ? "active_listener_sessions restricted" : "active_listener_sessions exposed rows",
   ].join("; ");
-  const rlsOk = publicChannelOk && publicPlayableSongsOk && publicAssignmentsOk && profilesRestricted && takedownsRestricted && importQueueRestricted;
+  const rlsOk = publicChannelOk && publicPlayableSongsOk && publicAssignmentsOk && profilesRestricted && takedownsRestricted && importQueueRestricted && presenceRestricted;
   if (!rlsOk) failures += 1;
   reportLine("public RLS behavior", rlsOk, rlsDetails);
 

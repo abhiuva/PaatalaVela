@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import type { DbAdminProfile } from "@/types/database";
+import { isActiveAdministrator } from "@/lib/admin/authorization";
 
 export type AdminContext =
   | { status: "ok"; userId: string; profile: DbAdminProfile }
@@ -36,10 +37,10 @@ export async function getAdminContext(): Promise<AdminContext> {
     .eq("active", true)
     .maybeSingle();
 
-  if (!profile) {
+  if (!isActiveAdministrator(profile)) {
     return {
       status: "unauthorized",
-      message: "This signed-in account is not authorized for the radio administration console.",
+      message: "This account is not authorized for the administration console.",
     };
   }
 

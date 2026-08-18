@@ -48,7 +48,10 @@ Quick path:
 
 ```bash
 npm run supabase:verify
-ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='Use-A-Strong-Password-123' ADMIN_DISPLAY_NAME='Admin Name' npm run admin:bootstrap
+read -s "ADMIN_PASSWORD?Admin password: " && echo
+export ADMIN_PASSWORD
+ADMIN_EMAIL=admin@example.com ADMIN_DISPLAY_NAME='Admin Name' npm run admin:bootstrap
+unset ADMIN_PASSWORD
 ```
 
 If the Supabase CLI is not linked yet, run `npx supabase login`, `npx supabase link --project-ref YOUR_PROJECT_REF`, `npx supabase migration list`, then `npx supabase db push`.

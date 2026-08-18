@@ -51,13 +51,13 @@ Find `YOUR_PROJECT_REF` in the Supabase dashboard URL or project settings.
 After migrations are applied, create or promote one admin account:
 
 ```bash
-ADMIN_EMAIL=admin@example.com \
-ADMIN_PASSWORD='Use-A-Strong-Password-123' \
-ADMIN_DISPLAY_NAME='Admin Name' \
-npm run admin:bootstrap
+read -s "ADMIN_PASSWORD?Admin password: " && echo
+export ADMIN_PASSWORD
+ADMIN_EMAIL=admin@example.com ADMIN_DISPLAY_NAME='Admin Name' npm run admin:bootstrap
+unset ADMIN_PASSWORD
 ```
 
-The bootstrap script is idempotent. It creates the Auth user if missing, confirms that bootstrap email, upserts `admin_profiles` as an active `admin`, verifies login once and never prints the password or Supabase keys.
+The silent prompt keeps the password out of shell history. The bootstrap script is idempotent: invoking it explicitly configures the supplied password in Supabase Auth, creates the Auth user only when missing, confirms the email, and upserts `admin_profiles` as an active `admin`. It never prints the email, password, UUID, user record, tokens or Supabase keys.
 
 Then open:
 
@@ -70,9 +70,10 @@ http://localhost:3000/admin/login
 Use this only for an existing Supabase Auth user that already has an active `admin_profiles` row with role `admin`. The reset script will not create users or change admin permissions.
 
 ```bash
-ADMIN_EMAIL=admin@example.com \
-ADMIN_NEW_PASSWORD='Use-A-New-Strong-Password-123' \
-npm run admin:reset-password
+read -s "ADMIN_NEW_PASSWORD?New admin password: " && echo
+export ADMIN_NEW_PASSWORD
+ADMIN_EMAIL=admin@example.com npm run admin:reset-password
+unset ADMIN_NEW_PASSWORD
 ```
 
 The script prints only safe status lines. It never prints the password, password length, service-role key, access tokens, auth tokens or the full Auth user record.
@@ -110,16 +111,14 @@ where schemaname = 'public'
     'sponsor_campaigns',
     'daily_sponsor_metrics',
     'song_requests'
+    ,'feedback_submissions'
+    ,'active_listener_sessions'
   )
 order by tablename;
 ```
 
 ## Troubleshooting
 
-If `/admin/login` says admin login is not configured, check `.env.local` and deployment secrets.
+The login form always displays `Unable to sign in with those credentials.` for configuration, credential and authorization failures. Check `.env.local`, project availability and the account profile from a trusted administrator environment.
 
-If the login form says Supabase is unreachable, confirm the project is not paused and the URL/key pair belongs to the same project.
-
-If the login form says credentials are invalid, the email/password failed or the account does not match the intended admin. Keep this message generic in production.
-
-If `/admin` says unauthorized after login, run `npm run admin:bootstrap` for that email or check the `admin_profiles` row is active with role `admin` or `editor`.
+If `/admin` says unauthorized after login, run `npm run admin:bootstrap` for that email or check the `admin_profiles` row is active with role `admin`.

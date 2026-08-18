@@ -7,6 +7,7 @@ const reorderMigration = readFileSync(path.join(process.cwd(), "supabase/migrati
 const sprint4Migration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260815143300_sprint4_analytics_sponsorship.sql"), "utf8");
 const youtubeImportMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260817090000_youtube_import_queue.sql"), "utf8");
 const feedbackMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818120000_sprint6_feedback.sql"), "utf8");
+const presenceMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818143000_sprint6_1_active_listeners.sql"), "utf8");
 const repository = readFileSync(path.join(process.cwd(), "src/lib/catalogue/repository.ts"), "utf8");
 const remoteCatalogue = readFileSync(path.join(process.cwd(), "src/lib/catalogue/remote.ts"), "utf8");
 const feedbackActions = readFileSync(path.join(process.cwd(), "src/app/admin/(protected)/analytics/actions.ts"), "utf8");
@@ -80,5 +81,14 @@ describe("RLS migration", () => {
     expect(feedbackActions).toContain('context.profile.role !== "admin"');
     expect(feedbackActions).toContain("admin_sentiment_override: override");
     expect(feedbackActions).toContain('sentiment_status: override ? "manually_reviewed"');
+  });
+
+  it("keeps listener rows private and deduplicates browser sessions", () => {
+    expect(presenceMigration).toContain("session_hash text primary key");
+    expect(presenceMigration).toContain("alter table public.active_listener_sessions enable row level security");
+    expect(presenceMigration).not.toContain("Public read active_listener_sessions");
+    expect(presenceMigration).not.toContain("Public insert active_listener_sessions");
+    expect(presenceMigration).toContain("on conflict (session_hash) do update");
+    expect(presenceMigration).toContain("revoke all on function public.upsert_listener_presence");
   });
 });

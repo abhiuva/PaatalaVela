@@ -34,3 +34,9 @@ The endpoint must return `label`, `score`, `confidence`, `summary`, and `themes`
 Listening events are ingested by `POST /api/analytics/events`. Channel and sponsor daily metrics are updated inline by that endpoint, so aggregation is currently **on demand**, not scheduled. Netlify does not need a cron job for the current model. If ingestion is later separated from aggregation, create a scheduled Supabase function or Netlify scheduled function and update the Admin Analytics health definition.
 
 The admin test action inserts `schedule_viewed` with `is_test=true`. Health confirms it while production event counts and daily metrics exclude it. Feedback records are also excluded from behavioural event counts.
+
+## Active listener presence
+
+Live presence is strictly necessary, short-lived operational state and does not depend on optional analytics consent. It starts only after the listener activates playback. The browser keeps one random identifier in local storage so duplicate tabs refresh the same row; the server stores only an HMAC hash.
+
+A playing heartbeat is sent approximately every 30 seconds. The public count includes only non-test playing rows seen within 90 seconds whose expiry remains in the future. Pause, exit and prolonged tab inactivity stop heartbeats or send a final state update. Public callers receive aggregate totals only, and expired rows are removed opportunistically.

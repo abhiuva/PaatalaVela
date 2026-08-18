@@ -5,6 +5,8 @@ import { getAdminContext } from "@/lib/admin/auth";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { analyseStoredFeedback } from "@/lib/feedback/service";
 import type { SentimentLabel } from "@/types/database";
+import { randomUUID } from "node:crypto";
+import { hashPresenceSession } from "@/lib/presence/server";
 
 async function requireAdministrator() {
   const context = await getAdminContext();
@@ -61,5 +63,18 @@ export async function sendTestAnalyticsEventAction() {
       properties: payload.properties,
     });
   }
+  revalidatePath("/admin/analytics");
+}
+
+export async function sendTestPresenceAction() {
+  const supabase = await requireAdministrator();
+  await supabase.rpc("upsert_listener_presence", {
+    p_session_hash: hashPresenceSession(randomUUID()),
+    p_channel_id: null,
+    p_song_id: null,
+    p_player_state: "playing",
+    p_expires_at: new Date(Date.now() + 90_000).toISOString(),
+    p_is_test: true,
+  });
   revalidatePath("/admin/analytics");
 }

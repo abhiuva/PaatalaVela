@@ -17,6 +17,8 @@ import { getOrCreateSessionId, trackEvent } from "@/lib/analytics/client";
 import { useSponsors } from "@/hooks/useSponsors";
 import { useEffect } from "react";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { LiveListenerCount } from "@/components/presence/LiveListenerCount";
+import { useListenerPresence } from "@/hooks/useListenerPresence";
 
 export function RadioPlayer() {
   const { now, formattedTime, formattedDate } = useIndiaTime();
@@ -28,6 +30,7 @@ export function RadioPlayer() {
   const shareText = encodeURIComponent(
     `Listening to ${radio.channel.name} on Telugu Radio${radio.song ? `: ${radio.song.title} (${radio.song.film}) ${youtubeUrl}` : "."}`,
   );
+  useListenerPresence({ isPlaying: radio.isPlaying, hasUserInteracted: radio.hasUserInteracted, channelId: radio.channel.id, songId: radio.song?.id });
 
   useEffect(() => {
     if (!window.sessionStorage.getItem("telugu-radio-session")) {
@@ -64,12 +67,15 @@ export function RadioPlayer() {
               </p>
             ) : null}
           </div>
-          <div className="rounded-lg border border-white/15 bg-black/28 p-4 text-left shadow-xl shadow-black/20 backdrop-blur sm:min-w-64 sm:text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/58">India Time</p>
-            <time dateTime={now.toISOString()} className="mt-1 block text-3xl font-black tabular-nums">
-              {formattedTime}
-            </time>
-            <p className="text-sm text-white/70">{formattedDate} IST</p>
+          <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+            <LiveListenerCount channelId={radio.channel.id} />
+            <div className="w-full rounded-lg border border-white/15 bg-black/28 p-4 text-left shadow-xl shadow-black/20 backdrop-blur sm:min-w-64 sm:text-right">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/58">India Time</p>
+              <time dateTime={now.toISOString()} className="mt-1 block text-3xl font-black tabular-nums">
+                {formattedTime}
+              </time>
+              <p className="text-sm text-white/70">{formattedDate} IST</p>
+            </div>
           </div>
         </header>
 

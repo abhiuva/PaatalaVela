@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { runResetAdminPassword } from "./reset-admin-password.mjs";
+import { randomUUID } from "node:crypto";
 
 const validEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: "service-role-secret-value",
+  SUPABASE_SERVICE_ROLE_KEY: `test-service-${randomUUID()}`,
   ADMIN_EMAIL: "admin@example.com",
-  ADMIN_NEW_PASSWORD: "NewPassword123",
+  ADMIN_NEW_PASSWORD: `Aa1!${randomUUID().replaceAll("-", "")}`,
 };
 
 function createMockService({
@@ -61,7 +62,7 @@ describe("reset-admin-password script", () => {
   });
 
   it("rejects a short password", async () => {
-    await expect(runWithMock({ ...validEnv, ADMIN_NEW_PASSWORD: "short" })).rejects.toThrow("ADMIN_NEW_PASSWORD must be at least 12 characters");
+    await expect(runWithMock({ ...validEnv, ADMIN_NEW_PASSWORD: "x".repeat(11) })).rejects.toThrow("ADMIN_NEW_PASSWORD must be at least 12 characters");
   });
 
   it("rejects an unknown user", async () => {

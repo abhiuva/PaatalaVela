@@ -7,7 +7,8 @@ import { analyticsHealthStatus, excludeTestEvents, feedbackMetrics, filterFeedba
 import { feedbackCategories, satisfactionFromRating } from "@/lib/feedback/validation";
 import { sentimentProviderConfigured } from "@/lib/feedback/sentiment";
 import type { DbFeedbackSubmission, FeedbackCategory, SentimentLabel } from "@/types/database";
-import { analysePendingFeedbackAction, overrideSentimentAction, reanalyseFeedbackAction, sendTestAnalyticsEventAction } from "./actions";
+import { analysePendingFeedbackAction, overrideSentimentAction, reanalyseFeedbackAction, sendTestAnalyticsEventAction, sendTestPresenceAction } from "./actions";
+import { aggregateActiveListeners } from "@/lib/presence/validation";
 
 type Search = Record<string, string | string[] | undefined>;
 const sentimentLabels: SentimentLabel[] = ["positive", "neutral", "negative", "mixed"];
@@ -34,13 +35,14 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const context = await getAdminContext();
   const supabase = createServiceSupabaseClient();
   const canReadFeedback = context.status === "ok" && context.profile.role === "admin";
-  const [channelMetrics, sponsorMetrics, channelResult, songResult, feedbackResult, eventResult] = await Promise.all([
+  const [channelMetrics, sponsorMetrics, channelResult, songResult, feedbackResult, eventResult, presenceResult] = await Promise.all([
     supabase?.from("daily_channel_metrics").select("*").order("metric_date_ist", { ascending: false }).limit(180),
     supabase?.from("daily_sponsor_metrics").select("*").order("metric_date_ist", { ascending: false }).limit(180),
     supabase?.from("channels").select("id, name"),
     canReadFeedback ? supabase?.from("songs").select("id, title").order("title").limit(2000) : null,
     canReadFeedback ? supabase?.from("feedback_submissions").select("*").order("created_at", { ascending: false }).limit(5000) : null,
     canReadFeedback ? supabase?.from("listening_events").select("*").order("created_at", { ascending: false }).limit(1000) : null,
+    canReadFeedback ? supabase?.from("active_listener_sessions").select("channel_id, player_state, last_seen_at, expires_at, is_test, heartbeat_window_started_at, heartbeat_count").order("last_seen_at", { ascending: false }).limit(5000) : null,
   ]);
 
   const rows = channelMetrics?.data ?? [];
@@ -71,12 +73,19 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const testEvents = (eventResult?.data ?? []).filter((event) => event.is_test || event.properties?.is_test === true);
   // This force-dynamic server page intentionally evaluates health against request time.
   // eslint-disable-next-line react-hooks/purity
-  const dayAgo = Date.now() - 24 * 60 * 60_000;
+  const requestNow = Date.now();
+  const dayAgo = requestNow - 24 * 60 * 60_000;
   const events24h = events.filter((event) => new Date(event.created_at).getTime() >= dayAgo).length;
   const feedback24h = allFeedback.filter((row) => new Date(row.created_at).getTime() >= dayAgo).length;
   const latestAggregation = rows.map((row) => row.updated_at).sort().at(-1) ?? null;
   const configurationReady = Boolean(supabase) && !eventResult?.error && !feedbackResult?.error;
   const health = analyticsHealthStatus({ configured: configurationReady, lastEventAt: events[0]?.created_at ?? null, eventsLast24Hours: events24h, latestAggregationAt: latestAggregation });
+  const presenceRows = presenceResult?.data ?? [];
+  const activePresence = aggregateActiveListeners(presenceRows, null, requestNow);
+  const activeChannelCount = new Set(presenceRows.filter((row) => row.player_state === "playing" && !row.is_test && new Date(row.last_seen_at).getTime() >= requestNow - 90_000 && new Date(row.expires_at).getTime() > requestNow).map((row) => row.channel_id).filter(Boolean)).size;
+  const recentHeartbeatCount = presenceRows.filter((row) => !row.is_test && new Date(row.heartbeat_window_started_at).getTime() >= requestNow - 5 * 60_000).reduce((sum, row) => sum + row.heartbeat_count, 0);
+  const expiredPresenceCount = presenceRows.filter((row) => new Date(row.expires_at).getTime() <= requestNow).length;
+  const lastHeartbeat = presenceRows.find((row) => !row.is_test)?.last_seen_at ?? null;
   const filterQuery = new URLSearchParams(Object.entries(search).flatMap(([key, item]) => typeof item === "string" && item ? [[key, item]] : [])).toString();
 
   return <main className="mx-auto max-w-7xl space-y-8 px-4 py-6">
@@ -91,8 +100,9 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div><dt className="text-white/45">Configuration</dt><dd className="font-bold">{configurationReady ? "Configured" : "Misconfigured"}</dd></div><div><dt className="text-white/45">Consent</dt><dd className="font-bold">Explicit opt-in</dd></div><div><dt className="text-white/45">Last real event</dt><dd className="font-bold">{shortDate(events[0]?.created_at ?? null)}</dd></div><div><dt className="text-white/45">Events, last 24h</dt><dd className="font-bold">{events24h}</dd></div>
         <div><dt className="text-white/45">Last daily update</dt><dd className="font-bold">{shortDate(latestAggregation)}</dd></div><div><dt className="text-white/45">Aggregation</dt><dd className="font-bold">On demand at ingestion</dd></div><div><dt className="text-white/45">Pending aggregation</dt><dd className="font-bold">None - inline updates</dd></div><div><dt className="text-white/45">Feedback storage</dt><dd className="font-bold">{feedbackResult?.error ? "Migration required" : "Ready"}</dd></div><div><dt className="text-white/45">Feedback, last 24h</dt><dd className="font-bold">{feedback24h}</dd></div><div><dt className="text-white/45">Sentiment provider</dt><dd className="font-bold">{sentimentProviderConfigured() ? "Configured" : "Pending configuration"}</dd></div><div><dt className="text-white/45">Pending sentiment</dt><dd className="font-bold">{feedbackMetrics(allFeedback).pending}</dd></div><div><dt className="text-white/45">Test events excluded</dt><dd className="font-bold">{testEvents.length}</dd></div>
+        <div><dt className="text-white/45">Active listeners now</dt><dd className="font-bold">{presenceResult?.error ? "Unavailable" : activePresence.total}</dd></div><div><dt className="text-white/45">Active channels</dt><dd className="font-bold">{presenceResult?.error ? "Unavailable" : activeChannelCount}</dd></div><div><dt className="text-white/45">Last heartbeat</dt><dd className="font-bold">{shortDate(lastHeartbeat)}</dd></div><div><dt className="text-white/45">Heartbeats, last 5m</dt><dd className="font-bold">{presenceResult?.error ? "Unavailable" : recentHeartbeatCount}</dd></div><div><dt className="text-white/45">Expired presence rows</dt><dd className="font-bold">{presenceResult?.error ? "Unavailable" : expiredPresenceCount}</dd></div><div><dt className="text-white/45">Presence service</dt><dd className="font-bold">{presenceResult?.error ? "Migration required" : "Ready"}</dd></div>
       </dl>
-      {canReadFeedback ? <form action={sendTestAnalyticsEventAction} className="mt-4"><button className="rounded-md border border-white/20 px-3 py-2 text-sm font-bold hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white">Send test analytics event</button></form> : null}
+      {canReadFeedback ? <div className="mt-4 flex flex-wrap gap-2"><form action={sendTestAnalyticsEventAction}><button className="rounded-md border border-white/20 px-3 py-2 text-sm font-bold hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white">Send test analytics event</button></form><form action={sendTestPresenceAction}><button className="rounded-md border border-white/20 px-3 py-2 text-sm font-bold hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white">Send test heartbeat</button></form></div> : null}
     </section>
 
     {canReadFeedback ? <section aria-labelledby="feedback-overview" className="space-y-5">

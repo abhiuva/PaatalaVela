@@ -31,6 +31,7 @@ export type YouTubeImportAvailability = "available" | "unavailable" | "private" 
 export type FeedbackCategory = "music_selection" | "playback" | "channel_experience" | "design" | "performance" | "other";
 export type SentimentStatus = "pending" | "processing" | "completed" | "failed" | "manually_reviewed";
 export type SentimentLabel = "positive" | "neutral" | "negative" | "mixed";
+export type ListenerPlayerState = "playing" | "paused" | "stopped";
 
 export type Database = {
   public: {
@@ -294,6 +295,34 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["feedback_submissions"]["Insert"]>;
         Relationships: [];
       };
+      active_listener_sessions: {
+        Row: {
+          session_hash: string;
+          channel_id: string | null;
+          song_id: string | null;
+          player_state: ListenerPlayerState;
+          first_seen_at: string;
+          last_seen_at: string;
+          expires_at: string;
+          is_test: boolean;
+          heartbeat_window_started_at: string;
+          heartbeat_count: number;
+        };
+        Insert: {
+          session_hash: string;
+          channel_id?: string | null;
+          song_id?: string | null;
+          player_state: ListenerPlayerState;
+          first_seen_at?: string;
+          last_seen_at?: string;
+          expires_at: string;
+          is_test?: boolean;
+          heartbeat_window_started_at?: string;
+          heartbeat_count?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["active_listener_sessions"]["Insert"]>;
+        Relationships: [];
+      };
       daily_channel_metrics: {
         Row: {
           metric_date_ist: string;
@@ -528,6 +557,21 @@ export type Database = {
         };
         Returns: number;
       };
+      upsert_listener_presence: {
+        Args: {
+          p_session_hash: string;
+          p_channel_id: string | null;
+          p_song_id: string | null;
+          p_player_state: ListenerPlayerState;
+          p_expires_at: string;
+          p_is_test?: boolean;
+        };
+        Returns: undefined;
+      };
+      delete_expired_listener_sessions: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
     };
     Enums: {
       embed_status: EmbedStatus;
@@ -543,3 +587,4 @@ export type DbAdminProfile = Database["public"]["Tables"]["admin_profiles"]["Row
 export type DbTakedownRequest = Database["public"]["Tables"]["takedown_requests"]["Row"];
 export type DbYouTubeImportQueue = Database["public"]["Tables"]["youtube_import_queue"]["Row"];
 export type DbFeedbackSubmission = Database["public"]["Tables"]["feedback_submissions"]["Row"];
+export type DbActiveListenerSession = Database["public"]["Tables"]["active_listener_sessions"]["Row"];
