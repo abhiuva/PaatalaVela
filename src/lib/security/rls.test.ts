@@ -8,6 +8,7 @@ const sprint4Migration = readFileSync(path.join(process.cwd(), "supabase/migrati
 const youtubeImportMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260817090000_youtube_import_queue.sql"), "utf8");
 const feedbackMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818120000_sprint6_feedback.sql"), "utf8");
 const presenceMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818143000_sprint6_1_active_listeners.sql"), "utf8");
+const englishCleanupMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260819120000_add_english_hits_cleanup_placeholders.sql"), "utf8");
 const repository = readFileSync(path.join(process.cwd(), "src/lib/catalogue/repository.ts"), "utf8");
 const remoteCatalogue = readFileSync(path.join(process.cwd(), "src/lib/catalogue/remote.ts"), "utf8");
 const feedbackActions = readFileSync(path.join(process.cwd(), "src/app/admin/(protected)/analytics/actions.ts"), "utf8");
@@ -90,5 +91,15 @@ describe("RLS migration", () => {
     expect(presenceMigration).not.toContain("Public insert active_listener_sessions");
     expect(presenceMigration).toContain("on conflict (session_hash) do update");
     expect(presenceMigration).toContain("revoke all on function public.upsert_listener_presence");
+  });
+
+  it("adds English Hits and cleans only explicitly allowlisted placeholders", () => {
+    expect(englishCleanupMigration).toContain("6f3fc628-a517-4dc5-a479-334d6bce7558");
+    expect(englishCleanupMigration).toContain("'english-hits'");
+    expect(englishCleanupMigration).toContain("scheduled = false");
+    expect(englishCleanupMigration).toContain("dummy_song_cleanup_candidates");
+    expect(englishCleanupMigration).toContain("and title ilike '%Placeholder%'");
+    expect(englishCleanupMigration).toContain("and embed_status = 'unchecked'");
+    expect(englishCleanupMigration).not.toContain("delete from public.songs;");
   });
 });

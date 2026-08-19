@@ -1,5 +1,5 @@
 import { channels } from "@/data/channels";
-import type { Channel, ChannelId, TimeRange } from "@/types/radio";
+import type { Channel, ChannelSlug, TimeRange } from "@/types/radio";
 
 export const INDIA_TIME_ZONE = "Asia/Kolkata";
 
@@ -16,7 +16,7 @@ export function isHourInRange(hour: number, range: TimeRange): boolean {
 }
 
 export function getChannelForHour(hour: number, list: Channel[] = channels): Channel {
-  const channel = list.find((item) => isHourInRange(hour, item.schedule));
+  const channel = list.find((item) => item.scheduled && isHourInRange(hour, item.schedule));
 
   if (!channel) {
     throw new Error(`No channel configured for hour ${hour}`);
@@ -40,21 +40,22 @@ export function getScheduledChannel(date: Date, list: Channel[] = channels): Cha
   return getChannelForHour(getIndiaHour(date), list);
 }
 
-export function getNextChannel(channelId: ChannelId, list: Channel[] = channels): Channel {
-  const index = list.findIndex((channel) => channel.id === channelId);
+export function getNextChannel(channelSlug: ChannelSlug, list: Channel[] = channels): Channel {
+  const scheduledChannels = list.filter((channel) => channel.scheduled);
+  const index = scheduledChannels.findIndex((channel) => channel.slug === channelSlug);
 
   if (index === -1) {
-    throw new Error(`Unknown channel ${channelId}`);
+    return scheduledChannels[0] ?? list[0];
   }
 
-  return list[(index + 1) % list.length];
+  return scheduledChannels[(index + 1) % scheduledChannels.length];
 }
 
-export function getChannelById(channelId: ChannelId, list: Channel[] = channels): Channel {
-  const channel = list.find((item) => item.id === channelId);
+export function getChannelBySlug(channelSlug: ChannelSlug, list: Channel[] = channels): Channel {
+  const channel = list.find((item) => item.slug === channelSlug);
 
   if (!channel) {
-    throw new Error(`Unknown channel ${channelId}`);
+    throw new Error(`Unknown channel ${channelSlug}`);
   }
 
   return channel;

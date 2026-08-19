@@ -14,7 +14,6 @@ const songs: QueueItem[] = [
     durationSeconds: 100,
     sequence: 10,
     assignmentCreatedAt: "2026-01-01T00:00:00.000Z",
-    placeholder: false,
   },
   {
     id: "s2",
@@ -27,7 +26,6 @@ const songs: QueueItem[] = [
     durationSeconds: 200,
     sequence: 20,
     assignmentCreatedAt: "2026-01-01T00:00:00.000Z",
-    placeholder: false,
   },
 ];
 

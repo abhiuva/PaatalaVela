@@ -42,6 +42,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: "FEEDBACK_NOT_CONFIGURED", message: "Feedback is temporarily unavailable. Please try again later." }, { status: 503 });
   }
 
+  if (parsed.data.channelId) {
+    const { data: channel, error: channelError } = await supabase
+      .from("channels")
+      .select("id")
+      .eq("id", parsed.data.channelId)
+      .maybeSingle();
+
+    if (channelError) {
+      console.error("Feedback channel verification failed", { code: channelError.code });
+      return NextResponse.json({ ok: false, code: "FEEDBACK_CHANNEL_CHECK_FAILED", message: "Feedback is temporarily unavailable. Please try again later." }, { status: 503 });
+    }
+    if (!channel) {
+      return NextResponse.json({ ok: false, code: "FEEDBACK_CHANNEL_NOT_FOUND", field: "channelId", message: "The selected channel is no longer available. Submit general feedback or choose another channel." }, { status: 400 });
+    }
+  }
+
   const hasComment = Boolean(parsed.data.comment);
   const { data, error } = await supabase.from("feedback_submissions").insert({
     rating: parsed.data.rating,

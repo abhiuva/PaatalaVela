@@ -28,6 +28,14 @@ describe("feedback validation", () => {
     expect(feedbackInputSchema.safeParse({ ...valid, comment: "x".repeat(1001) }).success).toBe(false);
   });
 
+  it("accepts nullable channel UUIDs but rejects empty values and slugs", () => {
+    expect(feedbackInputSchema.parse(valid).channelId).toBeNull();
+    expect(feedbackInputSchema.parse({ ...valid, channelId: null }).channelId).toBeNull();
+    expect(feedbackInputSchema.safeParse({ ...valid, channelId: "0d59b967-3908-41a7-8c80-e4f97bb5b3ae" }).success).toBe(true);
+    expect(feedbackInputSchema.safeParse({ ...valid, channelId: "" }).success).toBe(false);
+    expect(feedbackInputSchema.safeParse({ ...valid, channelId: "tea-shop-classics" }).success).toBe(false);
+  });
+
   it("keeps rating satisfaction separate from comment sentiment", () => {
     expect(satisfactionFromRating(1)).toBe("dissatisfied");
     expect(satisfactionFromRating(3)).toBe("neutral");

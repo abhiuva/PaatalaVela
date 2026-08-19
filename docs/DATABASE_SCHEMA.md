@@ -4,7 +4,7 @@ Migrations live in `supabase/migrations`.
 
 ## Tables
 
-- `channels`: six locked scheduled channels with names, Telugu names, positioning, colors, display order, and active flag.
+- `channels`: six locked Telugu schedule channels plus optional add-on channels, with names, positioning, colors, display order, scheduling mode, and active flag.
 - `songs`: catalogue metadata, unique `youtube_video_id`, optional external links, availability status, active flag, and check timestamps.
 - `channel_songs`: channel-song assignments with sequence, weight, and active flag. Duplicate assignments in the same channel are prevented.
 - `admin_profiles`: links `auth.users` to an active `admin` or `editor` role.
@@ -30,4 +30,4 @@ Active admins and editors may read, insert, and update catalogue and takedown re
 
 ## Seed Data
 
-The seed migration inserts the six locked channels and placeholder sample songs. It is idempotent and sets imported placeholders to `embed_status = unchecked`.
+The original seed migration is followed by a forward-only cleanup migration that removes exact, explicitly identified placeholder records. English Hits is inserted with `scheduled = false`; verified songs are added through the admin YouTube import workflow.

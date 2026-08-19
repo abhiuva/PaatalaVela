@@ -194,13 +194,13 @@ export default async function AdminPage() {
               <ActionStateForm key={channel.id} action={updateChannelAction} submitLabel="Save channel">
                 <input type="hidden" name="id" value={channel.id} />
                 <p className="font-bold">{channel.name}</p>
-                <p className="text-sm text-white/55">Locked schedule: {formatScheduleRange({ startHour: channel.start_hour, endHour: channel.end_hour })}</p>
+                <p className="text-sm text-white/55">{channel.scheduled ? `Locked schedule: ${formatScheduleRange({ startHour: channel.start_hour, endHour: channel.end_hour })}` : "Optional on-demand channel"}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm text-white/75">English name<Input name="name" defaultValue={channel.name} required /></label>
                   <label className="text-sm text-white/75">Telugu name<Input name="teluguName" defaultValue={channel.telugu_name} required /></label>
                   <label className="text-sm text-white/75 sm:col-span-2">Positioning<Input name="positioning" defaultValue={channel.positioning} required /></label>
                   <label className="text-sm text-white/75">Mood image URL<Input name="backgroundImageUrl" defaultValue={channel.background_image_url ?? ""} type="url" /></label>
-                  <label className="text-sm text-white/75">Visual order<Input name="displayOrder" defaultValue={channel.display_order} type="number" min="1" max="6" /></label>
+                  <label className="text-sm text-white/75">Visual order<Input name="displayOrder" defaultValue={channel.display_order} type="number" min="1" max="99" /></label>
                   <label className="text-sm text-white/75">Primary<Input name="primaryColor" defaultValue={channel.primary_color} /></label>
                   <label className="text-sm text-white/75">Secondary<Input name="secondaryColor" defaultValue={channel.secondary_color} /></label>
                   <label className="text-sm text-white/75">Accent<Input name="accentColor" defaultValue={channel.accent_color} /></label>

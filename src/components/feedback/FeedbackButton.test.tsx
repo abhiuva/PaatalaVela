@@ -32,4 +32,29 @@ describe("FeedbackButton", () => {
     expect(screen.getByLabelText(/Comment/)).toHaveValue("Playback is smooth");
     expect(playbackContinues).toBe(true);
   });
+
+  it("sends fallback channel and song identifiers as null", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } }));
+    render(<FeedbackButton channelId="tea-shop-classics" songId="tc-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Share feedback" }));
+    fireEvent.click(screen.getByRole("radio", { name: "5 out of 5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const payload = JSON.parse(String((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body));
+    expect(payload).toMatchObject({ channelId: null, songId: null });
+  });
+
+  it("preserves the valid Supabase channel UUID in the request payload", async () => {
+    const channelId = "0d59b967-3908-41a7-8c80-e4f97bb5b3ae";
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } }));
+    render(<FeedbackButton channelId={channelId} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share feedback" }));
+    fireEvent.click(screen.getByRole("radio", { name: "5 out of 5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const payload = JSON.parse(String((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body));
+    expect(payload.channelId).toBe(channelId);
+  });
 });

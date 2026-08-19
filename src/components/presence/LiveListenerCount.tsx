@@ -15,16 +15,16 @@ export function listenerCountText(state: CountState) {
   return state.channel == null ? total : `${total} · ${state.channel} on this channel`;
 }
 
-export function LiveListenerCount({ channelId }: { channelId: string }) {
+export function LiveListenerCount({ channelSlug }: { channelSlug: string }) {
   const [state, setState] = useState<CountState>({ status: "loading" });
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch(`/api/presence/count?channel=${encodeURIComponent(channelId)}`, { cache: "no-store" });
+      const response = await fetch(`/api/presence/count?channel=${encodeURIComponent(channelSlug)}`, { cache: "no-store" });
       const body = (await response.json()) as { ok?: boolean; total?: number; channel?: number | null };
       if (!response.ok || !body.ok || typeof body.total !== "number") { setState({ status: "error" }); return; }
       setState({ status: "ready", total: body.total, channel: typeof body.channel === "number" ? body.channel : null });
     } catch { setState({ status: "error" }); }
-  }, [channelId]);
+  }, [channelSlug]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void refresh(), 0);

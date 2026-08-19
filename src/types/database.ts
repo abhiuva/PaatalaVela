@@ -50,6 +50,7 @@ export type Database = {
           secondary_color: string;
           accent_color: string;
           display_order: number;
+          scheduled: boolean;
           active: boolean;
           created_at: string;
           updated_at: string;
@@ -67,6 +68,7 @@ export type Database = {
           secondary_color: string;
           accent_color: string;
           display_order: number;
+          scheduled?: boolean;
           active?: boolean;
           created_at?: string;
           updated_at?: string;

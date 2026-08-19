@@ -6,12 +6,13 @@ import { createClient } from "@supabase/supabase-js";
 
 const REQUIRED_ENV = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
 const EXPECTED_CHANNELS = [
-  ["suprabhata-melodies", 5, 9],
-  ["tea-shop-classics", 9, 13],
-  ["ilaiyaraaja-era", 13, 17],
-  ["prema-viraham", 17, 21],
-  ["mass-beat-centre", 21, 23],
-  ["highway-ratri", 23, 5],
+  ["suprabhata-melodies", 5, 9, true],
+  ["tea-shop-classics", 9, 13, true],
+  ["ilaiyaraaja-era", 13, 17, true],
+  ["prema-viraham", 17, 21, true],
+  ["mass-beat-centre", 21, 23, true],
+  ["highway-ratri", 23, 5, true],
+  ["english-hits", 0, 0, false],
 ];
 const EXPECTED_TABLES = [
   "channels",
@@ -124,9 +125,9 @@ async function main() {
 
   const { data: channels, error: channelsError } = await service
     .from("channels")
-    .select("slug,start_hour,end_hour,active")
+    .select("slug,start_hour,end_hour,scheduled,active")
     .order("display_order", { ascending: true });
-  const expectedBySlug = new Map(EXPECTED_CHANNELS.map(([slug, start, end]) => [slug, { start, end }]));
+  const expectedBySlug = new Map(EXPECTED_CHANNELS.map(([slug, start, end, scheduled]) => [slug, { start, end, scheduled }]));
   const seenChannels = new Set();
   let channelSeedOk = !channelsError;
   if (channelsError) {
@@ -136,14 +137,14 @@ async function main() {
       const expected = expectedBySlug.get(channel.slug);
       if (!expected) continue;
       seenChannels.add(channel.slug);
-      if (channel.start_hour !== expected.start || channel.end_hour !== expected.end || channel.active !== true) {
+      if (channel.start_hour !== expected.start || channel.end_hour !== expected.end || channel.scheduled !== expected.scheduled || channel.active !== true) {
         channelSeedOk = false;
       }
     }
     channelSeedOk = channelSeedOk && seenChannels.size === EXPECTED_CHANNELS.length;
     if (!channelSeedOk) failures += 1;
   }
-  reportLine("six locked channels seeded with expected schedule", channelSeedOk, channelsError?.message);
+  reportLine("six locked channels and English Hits seeded with expected scheduling", channelSeedOk, channelsError?.message);
 
   const adminSchema = await schemaProbe(service, "admin_profiles", "id,display_name,role,active,created_at");
   const adminCount = await headCount(service, "admin_profiles", "id");

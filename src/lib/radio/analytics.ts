@@ -1,4 +1,5 @@
 import { trackEvent } from "@/lib/analytics/client";
+import { isUuid } from "@/lib/validation/uuid";
 import type { AnalyticsEventName } from "@/types/database";
 
 const eventMap: Record<string, AnalyticsEventName> = {
@@ -18,6 +19,11 @@ const eventMap: Record<string, AnalyticsEventName> = {
 
 export function trackRadioEvent(event: keyof typeof eventMap, properties: Record<string, string | number | boolean | null> = {}) {
   if (process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  const channelReferences = Object.entries(properties).filter(([key]) => key.endsWith("channel_id"));
+  if (channelReferences.some(([, value]) => !isUuid(value))) {
     return;
   }
 

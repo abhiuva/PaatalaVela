@@ -16,7 +16,7 @@ export type QueueItem = Song & {
 };
 
 export type ChannelQueue = {
-  channelId: string;
+  channelSlug: string;
   items: readonly QueueItem[];
   warnings: readonly QueueWarning[];
 };
@@ -79,7 +79,7 @@ export function buildChannelQueue(channel: Channel, mode: PlaybackMode = "live")
   }
 
   return {
-    channelId: channel.id,
+    channelSlug: channel.slug,
     items: Object.freeze(items.map((item) => Object.freeze(item))),
     warnings: Object.freeze(warnings),
   };

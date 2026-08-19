@@ -31,7 +31,7 @@ Run the redacted verification script:
 npm run supabase:verify
 ```
 
-The script checks required env vars, Auth reachability, expected tables, six locked channels, admin profile fields and basic public RLS behavior. It does not print keys, passwords, user records or table row contents.
+The script checks required env vars, Auth reachability, expected tables, the six locked Telugu schedule channels, English Hits, admin profile fields and basic public RLS behavior. It does not print keys, passwords, user records or table row contents.
 
 ## Link And Push Migrations
 

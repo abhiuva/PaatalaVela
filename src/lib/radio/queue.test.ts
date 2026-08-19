@@ -4,7 +4,9 @@ import type { Channel } from "@/types/radio";
 
 function channel(songs: Channel["songs"]): Channel {
   return {
-    id: "tea-shop-classics",
+    id: null,
+    slug: "tea-shop-classics",
+    scheduled: true,
     name: "Tea Shop Classics",
     teluguName: "టీ షాప్ క్లాసిక్స్",
     strapline: "Test",
@@ -23,7 +25,6 @@ const baseSong = {
   composer: "Composer",
   youtubeVideoId: "dQw4w9WgXcQ",
   durationSeconds: 100,
-  placeholder: false,
 };
 
 describe("buildChannelQueue", () => {

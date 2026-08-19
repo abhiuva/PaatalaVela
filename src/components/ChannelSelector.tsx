@@ -1,23 +1,23 @@
 "use client";
 
 import { Radio } from "lucide-react";
-import type { Channel, ChannelId } from "@/types/radio";
+import type { Channel, ChannelSlug } from "@/types/radio";
 import { formatScheduleRange } from "@/lib/schedule";
 
 type ChannelSelectorProps = {
   channels: Channel[];
-  activeChannelId: ChannelId;
-  scheduledChannelId: ChannelId;
-  manualChannelId: ChannelId | null;
-  onSelect: (channelId: ChannelId) => void;
+  activeChannelSlug: ChannelSlug;
+  scheduledChannelSlug: ChannelSlug;
+  manualChannelSlug: ChannelSlug | null;
+  onSelect: (channelSlug: ChannelSlug) => void;
   onResumeSchedule: () => void;
 };
 
 export function ChannelSelector({
   channels,
-  activeChannelId,
-  scheduledChannelId,
-  manualChannelId,
+  activeChannelSlug,
+  scheduledChannelSlug,
+  manualChannelSlug,
   onSelect,
   onResumeSchedule,
 }: ChannelSelectorProps) {
@@ -27,7 +27,7 @@ export function ChannelSelector({
         <h2 id="channels-heading" className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
           Channels
         </h2>
-        {manualChannelId ? (
+        {manualChannelSlug ? (
           <button
             type="button"
             onClick={onResumeSchedule}
@@ -39,21 +39,21 @@ export function ChannelSelector({
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {channels.map((channel) => {
-          const isActive = channel.id === activeChannelId;
-          const isScheduled = channel.id === scheduledChannelId;
+          const isActive = channel.slug === activeChannelSlug;
+          const isScheduled = channel.slug === scheduledChannelSlug;
 
           return (
             <button
-              key={channel.id}
+              key={channel.slug}
               type="button"
-              onClick={() => onSelect(channel.id)}
+              onClick={() => onSelect(channel.slug)}
               aria-pressed={isActive}
               className="group min-w-0 rounded-lg border border-white/15 bg-black/22 p-3 text-left text-white shadow-lg shadow-black/10 backdrop-blur transition hover:bg-white/12 focus:outline-none focus:ring-2 focus:ring-white data-[active=true]:border-white/70 data-[active=true]:bg-white/18"
               data-active={isActive}
             >
               <span className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-white/60">
                 <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-                {formatScheduleRange(channel.schedule)}
+                {channel.scheduled ? formatScheduleRange(channel.schedule) : "On demand"}
                 {isScheduled ? <span className="text-white">Live slot</span> : null}
               </span>
               <span className="mt-2 block truncate text-base font-bold">{channel.name}</span>

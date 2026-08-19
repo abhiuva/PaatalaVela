@@ -4,6 +4,7 @@ import { MessageSquareText, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { feedbackCategories } from "@/lib/feedback/validation";
 import { getAnalyticsConsent, getOrCreateSessionId, type AnalyticsConsent } from "@/lib/analytics/client";
+import { uuidOrNull } from "@/lib/validation/uuid";
 
 const categoryLabels: Record<(typeof feedbackCategories)[number], string> = {
   music_selection: "Music selection",
@@ -14,7 +15,7 @@ const categoryLabels: Record<(typeof feedbackCategories)[number], string> = {
   other: "Other",
 };
 
-type Props = { channelId: string; songId?: string; appVersion?: string };
+type Props = { channelId?: string | null; songId?: string | null; appVersion?: string };
 type SubmitState = "idle" | "submitting" | "success" | "error";
 
 function newToken() {
@@ -85,8 +86,8 @@ export function FeedbackButton({ channelId, songId, appVersion }: Props) {
           rating,
           comment,
           category,
-          channelId,
-          songId: songId ?? null,
+          channelId: uuidOrNull(channelId),
+          songId: uuidOrNull(songId),
           pagePath: window.location.pathname,
           anonymousSessionId: sessionId,
           appVersion: appVersion ?? null,

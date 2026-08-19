@@ -58,7 +58,7 @@ If the Supabase CLI is not linked yet, run `npx supabase login`, `npx supabase l
 
 Start the app and visit `/admin/login`.
 
-The seed migration inserts the six locked channels and sample placeholder songs with `embed_status = unchecked`. Placeholder songs are not claimed as verified official uploads.
+The migrations insert the six locked Telugu schedule channels plus the optional on-demand English Hits channel. Public playback uses only active, available Supabase songs assigned through `channel_songs`; no placeholder media is bundled.
 
 ## Channel Schedule
 
@@ -72,34 +72,15 @@ All schedule calculations use `Asia/Kolkata`.
 | Prema & Viraham | 17:00-21:00 |
 | Mass Beat Centre | 21:00-23:00 |
 | Highway Ratri | 23:00-05:00 |
+| English Hits | On demand |
 
-The `Highway Ratri` range crosses midnight and is covered by unit tests.
+The `Highway Ratri` range crosses midnight and is covered by unit tests. English Hits is manually selectable and does not alter the six-channel Telugu schedule.
 
-## Replace Song Data
+## Song Data
 
-All channels and songs live in `src/data/channels.ts`.
+`src/data/channels.ts` contains display shells only and no playable fallback songs. Curate songs through the authenticated admin YouTube import workflow, which stores verified metadata in Supabase and creates an ordered `channel_songs` assignment. English Hits can remain empty until verified English songs are imported.
 
-Each channel has five clearly marked placeholder records:
-
-```ts
-{
-  title: "Suprabhata Placeholder 1",
-  film: "Replace With Film",
-  year: 1990,
-  singers: ["Replace Singer"],
-  composer: "Replace Composer",
-  youtubeVideoId: "dQw4w9WgXcQ",
-  placeholder: true,
-}
-```
-
-To curate the radio:
-
-1. Replace `title`, `film`, `year`, `singers`, and `composer`.
-2. Replace `youtubeVideoId` with the official YouTube video ID.
-3. Set `placeholder` to `false` after the record is real.
-
-Do not download or commit audio/video files. The repository should contain metadata only.
+Do not download or commit audio/video files. The repository contains metadata only.
 
 ## Admin Operations
 

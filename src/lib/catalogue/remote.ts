@@ -18,7 +18,7 @@ function toChannel(row: ChannelWithSongs): Channel | null {
     return null;
   }
 
-  const local = localChannels.find((channel) => channel.id === row.slug);
+  const local = localChannels.find((channel) => channel.slug === row.slug);
   const songs = (row.channel_songs ?? [])
     .filter((assignment) => assignment.active && assignment.songs)
     .sort(
@@ -50,13 +50,14 @@ function toChannel(row: ChannelWithSongs): Channel | null {
         assignmentCreatedAt: assignment.created_at,
         active: song.active,
         embedStatus: song.embed_status,
-        placeholder: false,
       };
     })
     .filter((song): song is Song => Boolean(song));
 
   return {
-    id: row.slug,
+    id: row.id,
+    slug: row.slug,
+    scheduled: row.scheduled ?? local?.scheduled ?? true,
     name: row.name,
     teluguName: row.telugu_name,
     strapline: row.positioning,
@@ -76,13 +77,16 @@ function toChannel(row: ChannelWithSongs): Channel | null {
 }
 
 function validateChannelShell(channels: Channel[]) {
-  if (channels.length !== 6) {
+  if (channels.length < localChannels.length) {
     return false;
   }
 
   return localChannels.every((local) => {
-    const channel = channels.find((item) => item.id === local.id);
-    return channel && channel.schedule.startHour === local.schedule.startHour && channel.schedule.endHour === local.schedule.endHour;
+    const channel = channels.find((item) => item.slug === local.slug);
+    return channel
+      && channel.scheduled === local.scheduled
+      && channel.schedule.startHour === local.schedule.startHour
+      && channel.schedule.endHour === local.schedule.endHour;
   });
 }
 

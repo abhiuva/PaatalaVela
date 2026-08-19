@@ -57,12 +57,6 @@ export function NowPlaying({ channel, song, pendingScheduledSwitch }: NowPlaying
         </div>
       </dl>
 
-      {song.placeholder ? (
-        <p className="mt-4 rounded-md border border-amber-200/30 bg-amber-300/12 px-3 py-2 text-xs font-medium text-amber-50">
-          Placeholder YouTube ID. Replace this record in <span className="font-mono">src/data/channels.ts</span>.
-        </p>
-      ) : null}
-
       {pendingScheduledSwitch ? (
         <p className="mt-3 rounded-md border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white">
           The schedule has moved on. This song will finish, then the next scheduled channel will load.

@@ -29,8 +29,9 @@ const baseSong: DbSong = {
 
 function channelRow(slug: string, index: number, songs: DbSong[] = []): ChannelWithSongs {
   const local = localChannels[index];
+  const channelId = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
   return {
-    id: `channel-${index}`,
+    id: channelId,
     slug,
     name: local.name,
     telugu_name: local.teluguName,
@@ -42,12 +43,13 @@ function channelRow(slug: string, index: number, songs: DbSong[] = []): ChannelW
     secondary_color: local.palette.via,
     accent_color: local.palette.accent,
     display_order: index + 1,
+    scheduled: local.scheduled,
     active: true,
     created_at: "2026-08-18T00:00:00.000Z",
     updated_at: "2026-08-18T00:00:00.000Z",
     channel_songs: songs.map((song, songIndex) => ({
       id: `assignment-${index}-${songIndex}`,
-      channel_id: `channel-${index}`,
+      channel_id: channelId,
       song_id: song.id,
       sequence: songIndex + 1,
       weight: 1,
@@ -59,32 +61,45 @@ function channelRow(slug: string, index: number, songs: DbSong[] = []): ChannelW
 }
 
 function allChannelRows(songChannelIndex = 1, song: DbSong | null = baseSong) {
-  return localChannels.map((channel, index) => channelRow(channel.id, index, song && index === songChannelIndex ? [song] : []));
+  return localChannels.map((channel, index) => channelRow(channel.slug, index, song && index === songChannelIndex ? [song] : []));
 }
 
 describe("Supabase public catalogue mapping", () => {
   it("returns an imported playable song from the public catalogue response", () => {
     const catalogue = buildSupabaseCatalogue(allChannelRows());
-    const teaShop = catalogue.channels.find((channel) => channel.id === "tea-shop-classics");
+    const teaShop = catalogue.channels.find((channel) => channel.slug === "tea-shop-classics");
 
     expect(catalogue.source).toBe("supabase");
     expect(catalogue.fallbackReason).toBeUndefined();
+    expect(teaShop).toMatchObject({ id: "00000000-0000-4000-8000-000000000002", slug: "tea-shop-classics" });
     expect(teaShop?.songs).toHaveLength(1);
     expect(teaShop?.songs[0]).toMatchObject({
       title: "Imported Song",
       youtubeVideoId: "BYW6drVxOIA",
-      placeholder: false,
       embedStatus: "available",
     });
   });
 
   it("keeps an empty selected channel empty instead of activating global fallback", () => {
     const catalogue = buildSupabaseCatalogue(allChannelRows());
-    const suprabhata = catalogue.channels.find((channel) => channel.id === "suprabhata-melodies");
+    const suprabhata = catalogue.channels.find((channel) => channel.slug === "suprabhata-melodies");
 
     expect(catalogue.source).toBe("supabase");
     expect(catalogue.fallbackReason).toBeUndefined();
     expect(suprabhata?.songs).toEqual([]);
+  });
+
+  it("includes English Hits as an empty on-demand Supabase channel with a UUID", () => {
+    const catalogue = buildSupabaseCatalogue(allChannelRows());
+    const english = catalogue.channels.find((channel) => channel.slug === "english-hits");
+
+    expect(catalogue.channels).toHaveLength(7);
+    expect(english).toMatchObject({
+      id: "00000000-0000-4000-8000-000000000007",
+      slug: "english-hits",
+      scheduled: false,
+      songs: [],
+    });
   });
 
   it("does not mark valid Supabase response as fallback when only some channels have songs", () => {

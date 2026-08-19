@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { channels } from "@/data/channels";
 import { trackEvent } from "@/lib/analytics/client";
+import { isUuid } from "@/lib/validation/uuid";
 
 type State = { status: "idle" | "submitting" } | { status: "success"; reference: string } | { status: "error"; message: string };
 
@@ -14,15 +15,17 @@ export function SongRequestForm() {
     setState({ status: "submitting" });
     const formData = new FormData(event.currentTarget);
     const response = await fetch("/api/song-request", { method: "POST", body: formData });
-    const body = (await response.json()) as { ok: boolean; reference?: string; message?: string };
+    const body = (await response.json()) as { ok: boolean; reference?: string; channelId?: string; message?: string };
     if (!response.ok || !body.ok || !body.reference) {
       setState({ status: "error", message: body.message ?? "Unable to submit request." });
       return;
     }
-    trackEvent("song_request_submitted", {
-      session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
-      requested_channel_id: String(formData.get("requestedChannelId") ?? ""),
-    });
+    if (isUuid(body.channelId)) {
+      trackEvent("song_request_submitted", {
+        session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+        requested_channel_id: body.channelId,
+      });
+    }
     event.currentTarget.reset();
     setState({ status: "success", reference: body.reference });
   }
@@ -38,7 +41,7 @@ export function SongRequestForm() {
       <input name="singer" placeholder="Singer (optional)" className="w-full rounded-md bg-black/30 px-3 py-2" />
       <input name="youtubeUrl" type="url" placeholder="YouTube URL (optional)" className="w-full rounded-md bg-black/30 px-3 py-2" />
       <select name="requestedChannelId" required className="w-full rounded-md bg-black/30 px-3 py-2">
-        {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+        {channels.map((channel) => <option key={channel.slug} value={channel.slug}>{channel.name}</option>)}
       </select>
       <textarea name="reason" placeholder="Why should this fit the channel? (optional)" className="w-full rounded-md bg-black/30 px-3 py-2" />
       <input name="company" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />

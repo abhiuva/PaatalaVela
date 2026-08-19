@@ -1,10 +1,11 @@
-export type ChannelId =
+export type ChannelSlug =
   | "suprabhata-melodies"
   | "tea-shop-classics"
   | "ilaiyaraaja-era"
   | "prema-viraham"
   | "mass-beat-centre"
-  | "highway-ratri";
+  | "highway-ratri"
+  | "english-hits";
 
 export type TimeRange = {
   startHour: number;
@@ -24,11 +25,12 @@ export type Song = {
   assignmentCreatedAt?: string;
   active?: boolean;
   embedStatus?: "unchecked" | "available" | "unavailable" | "embedding_disabled" | "region_restricted";
-  placeholder: boolean;
 };
 
 export type Channel = {
-  id: ChannelId;
+  id: string | null;
+  slug: ChannelSlug;
+  scheduled: boolean;
   name: string;
   teluguName: string;
   strapline: string;

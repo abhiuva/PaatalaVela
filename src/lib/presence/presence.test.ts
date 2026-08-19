@@ -17,7 +17,7 @@ describe("active listener definition", () => {
   });
 
   it("strictly validates random browser IDs and allowed states", () => {
-    const valid = { sessionId: "b4d625f7-4104-4f00-949f-429e4e9c4d12", channelId: "tea-shop-classics", songId: null, playerState: "playing" };
+    const valid = { sessionId: "b4d625f7-4104-4f00-949f-429e4e9c4d12", channelSlug: "tea-shop-classics", songId: null, playerState: "playing" };
     expect(presenceInputSchema.safeParse(valid).success).toBe(true);
     expect(presenceInputSchema.safeParse({ ...valid, sessionId: "shared-name" }).success).toBe(false);
     expect(presenceInputSchema.safeParse({ ...valid, playerState: "buffering" }).success).toBe(false);

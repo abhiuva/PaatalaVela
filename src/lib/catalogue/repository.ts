@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getChannelById, getChannelForHour } from "@/lib/schedule";
+import { getChannelBySlug, getChannelForHour } from "@/lib/schedule";
 import { createPublicSupabaseServerClient, createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getLocalCatalogue } from "@/lib/catalogue/local";
 import { buildSupabaseCatalogue, type ChannelWithSongs } from "@/lib/catalogue/remote";
@@ -41,12 +41,12 @@ export class CatalogueRepository {
     return getChannelForHour(indiaTime.getHours(), catalogue.channels);
   }
 
-  async getSongsForChannel(channelId: string) {
+  async getSongsForChannel(channelSlug: string) {
     const catalogue = await this.getActiveChannels();
-    if (!isLockedChannelSlug(channelId)) {
+    if (!isLockedChannelSlug(channelSlug)) {
       return [];
     }
-    return getChannelById(channelId, catalogue.channels).songs;
+    return getChannelBySlug(channelSlug, catalogue.channels).songs;
   }
 
   async getSongById(songId: string) {
@@ -54,8 +54,8 @@ export class CatalogueRepository {
     return catalogue.channels.flatMap((channel) => channel.songs).find((song) => song.id === songId) ?? null;
   }
 
-  async getNextPlayableSong(channelId: string, currentSongId: string) {
-    const songs = await this.getSongsForChannel(channelId);
+  async getNextPlayableSong(channelSlug: string, currentSongId: string) {
+    const songs = await this.getSongsForChannel(channelSlug);
     if (songs.length === 0) {
       return null;
     }

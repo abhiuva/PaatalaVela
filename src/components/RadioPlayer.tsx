@@ -25,12 +25,12 @@ export function RadioPlayer() {
   const catalogue = useCatalogue();
   const sponsors = useSponsors();
   const radio = useRadioPlayer(now, catalogue.channels);
-  const canPlayCurrentSong = Boolean(radio.song) && !radio.song.placeholder && catalogue.source === "supabase";
+  const canPlayCurrentSong = Boolean(radio.song) && catalogue.source === "supabase";
   const youtubeUrl = radio.song ? `https://www.youtube.com/watch?v=${radio.song.youtubeVideoId}` : "#";
   const shareText = encodeURIComponent(
     `Listening to ${radio.channel.name} on Telugu Radio${radio.song ? `: ${radio.song.title} (${radio.song.film}) ${youtubeUrl}` : "."}`,
   );
-  useListenerPresence({ isPlaying: radio.isPlaying, hasUserInteracted: radio.hasUserInteracted, channelId: radio.channel.id, songId: radio.song?.id });
+  useListenerPresence({ isPlaying: radio.isPlaying, hasUserInteracted: radio.hasUserInteracted, channelSlug: radio.channel.slug, songId: radio.song?.id });
 
   useEffect(() => {
     if (!window.sessionStorage.getItem("telugu-radio-session")) {
@@ -59,7 +59,7 @@ export function RadioPlayer() {
               </p>
             ) : !radio.song ? (
               <p className="mt-3 max-w-2xl rounded-md border border-amber-200/30 bg-amber-300/12 px-3 py-2 text-sm font-medium text-amber-50">
-                No playable songs are assigned to this channel yet. {catalogue.diagnosticCode ? `(${catalogue.diagnosticCode})` : "(CHANNEL_EMPTY)"}
+                Songs are being added to this channel.
               </p>
             ) : radio.fallbackReason ? (
               <p className="mt-3 max-w-2xl rounded-md border border-amber-200/30 bg-amber-300/12 px-3 py-2 text-sm font-medium text-amber-50">
@@ -68,7 +68,7 @@ export function RadioPlayer() {
             ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-            <LiveListenerCount channelId={radio.channel.id} />
+            <LiveListenerCount channelSlug={radio.channel.slug} />
             <div className="w-full rounded-lg border border-white/15 bg-black/28 p-4 text-left shadow-xl shadow-black/20 backdrop-blur sm:min-w-64 sm:text-right">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/58">India Time</p>
               <time dateTime={now.toISOString()} className="mt-1 block text-3xl font-black tabular-nums">
@@ -86,8 +86,8 @@ export function RadioPlayer() {
             ) : (
               <section className="rounded-lg border border-white/15 bg-black/30 p-5 shadow-2xl shadow-black/20 backdrop-blur-md" aria-label="No song assigned">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/58">Now Playing</p>
-                <h2 className="mt-3 text-3xl font-black">No playable songs assigned</h2>
-                <p className="mt-2 text-white/70">Add an active, available Supabase song to {radio.channel.name} to enable playback.</p>
+                <h2 className="mt-3 text-3xl font-black">Songs are being added to this channel.</h2>
+                <p className="mt-2 text-white/70">Verified songs will appear here after an administrator imports and assigns them.</p>
               </section>
             )}
 
@@ -141,7 +141,7 @@ export function RadioPlayer() {
                 <span className="w-10 text-right tabular-nums">{radio.volume}%</span>
               </label>
 
-              {radio.manualChannelId || radio.listenerOffset ? (
+              {radio.manualChannelSlug || radio.listenerOffset ? (
                 <button
                   type="button"
                   onClick={radio.resumeSchedule}
@@ -166,7 +166,7 @@ export function RadioPlayer() {
                     trackEvent("youtube_source_clicked", {
                       session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
                       song_id: radio.song.id,
-                      channel_id: radio.channel.id,
+                      channel_id: radio.channel.id ?? radio.channel.slug,
                     });
                   }}
                 >
@@ -187,7 +187,7 @@ export function RadioPlayer() {
                     trackEvent("whatsapp_share_clicked", {
                       session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
                       song_id: radio.song.id,
-                      channel_id: radio.channel.id,
+                      channel_id: radio.channel.id ?? radio.channel.slug,
                     });
                   }}
                 >
@@ -215,7 +215,7 @@ export function RadioPlayer() {
                 The YouTube player will appear after this Supabase channel has an active, available song assignment.
               </section>
             )}
-            <SponsorPlacement campaigns={sponsors} channelId={radio.channel.id} placementType="now_playing" />
+            <SponsorPlacement campaigns={sponsors} channelId={radio.channel.id ?? ""} placementType="now_playing" />
           </section>
 
           <aside className="min-w-0 space-y-5">
@@ -226,7 +226,7 @@ export function RadioPlayer() {
               <dl className="mt-4 grid grid-cols-1 gap-3 text-sm text-white/78">
                 <div>
                   <dt className="text-white/48">Slot</dt>
-                  <dd className="font-semibold">{formatScheduleRange(radio.channel.schedule)} IST</dd>
+                  <dd className="font-semibold">{radio.channel.scheduled ? `${formatScheduleRange(radio.channel.schedule)} IST` : "On demand"}</dd>
                 </div>
                 <div>
                   <dt className="text-white/48">Next channel</dt>
@@ -241,16 +241,16 @@ export function RadioPlayer() {
 
             <ChannelSelector
               channels={radio.channels}
-              activeChannelId={radio.channel.id}
-              scheduledChannelId={radio.scheduledChannel.id}
-              manualChannelId={radio.manualChannelId}
+              activeChannelSlug={radio.channel.slug}
+              scheduledChannelSlug={radio.scheduledChannel.slug}
+              manualChannelSlug={radio.manualChannelSlug}
               onSelect={radio.selectChannel}
               onResumeSchedule={radio.resumeSchedule}
             />
 
-            <ScheduleTimeline channels={radio.channels} activeChannelId={radio.channel.id} nextChannelId={radio.nextChannel.id} />
+            <ScheduleTimeline channels={radio.channels} activeChannelSlug={radio.channel.slug} nextChannelSlug={radio.nextChannel.slug} />
 
-            <SponsorPlacement campaigns={sponsors} channelId={radio.channel.id} placementType="channel" />
+            <SponsorPlacement campaigns={sponsors} channelId={radio.channel.id ?? ""} placementType="channel" />
           </aside>
         </div>
 

@@ -17,11 +17,11 @@ function browserSessionId() {
 type PresenceOptions = {
   isPlaying: boolean;
   hasUserInteracted: boolean;
-  channelId: string;
+  channelSlug: string;
   songId?: string;
 };
 
-export function useListenerPresence({ isPlaying, hasUserInteracted, channelId, songId }: PresenceOptions) {
+export function useListenerPresence({ isPlaying, hasUserInteracted, channelSlug, songId }: PresenceOptions) {
   const activeRef = useRef(false);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function useListenerPresence({ isPlaying, hasUserInteracted, channelId, s
     const sessionId = browserSessionId();
     let hiddenTimer: number | undefined;
 
-    const payload = (playerState: "playing" | "paused" | "stopped") => JSON.stringify({ sessionId, channelId, songId: songId ?? null, playerState });
+    const payload = (playerState: "playing" | "paused" | "stopped") => JSON.stringify({ sessionId, channelSlug, songId: songId ?? null, playerState });
     const send = async (playerState: "playing" | "paused" | "stopped") => {
       try {
         const response = await fetch("/api/presence", { method: "POST", headers: { "content-type": "application/json" }, body: payload(playerState), keepalive: true });
@@ -71,5 +71,5 @@ export function useListenerPresence({ isPlaying, hasUserInteracted, channelId, s
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", finalSignal);
     };
-  }, [channelId, hasUserInteracted, isPlaying, songId]);
+  }, [channelSlug, hasUserInteracted, isPlaying, songId]);
 }

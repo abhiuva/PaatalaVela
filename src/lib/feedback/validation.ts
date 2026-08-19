@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { uuidSchema } from "@/lib/validation/uuid";
 
 export const feedbackCategories = [
   "music_selection",
@@ -9,7 +10,11 @@ export const feedbackCategories = [
   "other",
 ] as const;
 
-const optionalUuid = z.union([z.string().uuid(), z.literal("")]).nullish().transform((value) => value || null);
+const optionalUuid = uuidSchema.nullish().transform((value) => value ?? null);
+const optionalChannelUuid = z.string()
+  .uuid({ error: "Select a valid catalogue channel or submit general feedback." })
+  .nullish()
+  .transform((value) => value ?? null);
 const optionalText = (max: number) =>
   z.string().trim().max(max).nullish().transform((value) => value || null);
 
@@ -17,7 +22,7 @@ export const feedbackInputSchema = z.object({
   rating: z.coerce.number({ error: "Choose an overall rating from 1 to 5." }).int().min(1).max(5),
   comment: optionalText(1000),
   category: z.union([z.enum(feedbackCategories), z.literal("")]).nullish().transform((value) => value || null),
-  channelId: optionalUuid,
+  channelId: optionalChannelUuid,
   songId: optionalUuid,
   pagePath: optionalText(300),
   anonymousSessionId: optionalText(120),

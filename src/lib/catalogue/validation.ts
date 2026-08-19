@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ChannelId } from "@/types/radio";
+import type { ChannelSlug } from "@/types/radio";
 
 export const youtubeVideoIdSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{11}$/, "Use an 11-character YouTube video ID.");
 
@@ -86,7 +86,7 @@ export const channelInputSchema = z.object({
   primaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i),
   secondaryColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i),
   accentColor: z.string().trim().regex(/^#[0-9a-f]{6}$/i),
-  displayOrder: z.coerce.number().int().min(1).max(6),
+  displayOrder: z.coerce.number().int().min(1).max(99),
 });
 
 export const takedownInputSchema = z.object({
@@ -139,7 +139,7 @@ export const songRequestInputSchema = z.object({
   company: z.string().max(0, "Submission rejected."),
 });
 
-export function isLockedChannelSlug(value: string): value is ChannelId {
+export function isLockedChannelSlug(value: string): value is ChannelSlug {
   return [
     "suprabhata-melodies",
     "tea-shop-classics",
@@ -147,5 +147,6 @@ export function isLockedChannelSlug(value: string): value is ChannelId {
     "prema-viraham",
     "mass-beat-centre",
     "highway-ratri",
+    "english-hits",
   ].includes(value);
 }

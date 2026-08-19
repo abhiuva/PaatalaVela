@@ -12,7 +12,7 @@ describe("LiveListenerCount", () => {
 
   it("shows unavailable instead of a false zero when count loading fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-    render(<LiveListenerCount channelId="tea-shop-classics" />);
+    render(<LiveListenerCount channelSlug="tea-shop-classics" />);
     await waitFor(() => expect(screen.getByText("Live listeners unavailable")).toBeVisible());
     expect(screen.queryByText("Be the first listener")).not.toBeInTheDocument();
   });

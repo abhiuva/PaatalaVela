@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false, code: "PRESENCE_INVALID_INPUT" }, { status: 400 });
   const supabase = createServiceSupabaseClient();
   if (!supabase) return NextResponse.json({ ok: false, code: "PRESENCE_UNAVAILABLE" }, { status: 503 });
-  const channelId = await resolveChannelId(supabase, parsed.data.channelId);
+  const channelId = await resolveChannelId(supabase, parsed.data.channelSlug);
   if (!channelId) return NextResponse.json({ ok: false, code: "PRESENCE_CHANNEL_INVALID" }, { status: 400 });
   const now = Date.now();
   const expiresAt = new Date(parsed.data.playerState === "playing" ? now + 90_000 : now).toISOString();

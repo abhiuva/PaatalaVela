@@ -2,7 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useListenerPresence } from "@/hooks/useListenerPresence";
 
-const options = { isPlaying: false, hasUserInteracted: false, channelId: "tea-shop-classics", songId: "1f64281a-5acc-4981-af55-ae324cfe5952" };
+const options = { isPlaying: false, hasUserInteracted: false, channelSlug: "tea-shop-classics", songId: "1f64281a-5acc-4981-af55-ae324cfe5952" };
 
 describe("listener presence lifecycle", () => {
   beforeEach(() => {

@@ -18,7 +18,7 @@ describe("schedule boundaries", () => {
     [0, "highway-ratri"],
     [4, "highway-ratri"],
   ])("selects %s:00 as %s", (hour, expectedChannelId) => {
-    expect(getChannelForHour(hour).id).toBe(expectedChannelId);
+    expect(getChannelForHour(hour).slug).toBe(expectedChannelId);
   });
 
   it.each([
@@ -33,15 +33,23 @@ describe("schedule boundaries", () => {
     [4, "highway-ratri", true],
     [5, "highway-ratri", false],
   ])("handles range membership for %s:00 in %s", (hour, channelId, expected) => {
-    const channel = channels.find((item) => item.id === channelId);
+    const channel = channels.find((item) => item.slug === channelId);
     expect(channel).toBeDefined();
     expect(isHourInRange(hour, channel!.schedule)).toBe(expected);
   });
 
   it("covers every hour exactly once", () => {
     for (let hour = 0; hour < 24; hour += 1) {
-      const matchingChannels = channels.filter((channel) => isHourInRange(hour, channel.schedule));
+      const matchingChannels = channels.filter((channel) => channel.scheduled && isHourInRange(hour, channel.schedule));
       expect(matchingChannels).toHaveLength(1);
+    }
+  });
+
+  it("keeps English Hits outside the automatic Telugu schedule", () => {
+    const english = channels.find((channel) => channel.slug === "english-hits");
+    expect(english).toMatchObject({ scheduled: false, songs: [] });
+    for (let hour = 0; hour < 24; hour += 1) {
+      expect(getChannelForHour(hour).slug).not.toBe("english-hits");
     }
   });
 });

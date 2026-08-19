@@ -5,7 +5,7 @@ const optionalUuid = z.union([z.string().uuid(), z.literal("")]).nullish().trans
 
 export const presenceInputSchema = z.object({
   sessionId: z.string().uuid(),
-  channelId: channelReference,
+  channelSlug: channelReference,
   songId: optionalUuid,
   playerState: z.enum(["playing", "paused", "stopped"]),
 });
