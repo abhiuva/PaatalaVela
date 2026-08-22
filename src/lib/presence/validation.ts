@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { presenceConfig } from "@/lib/presence/config";
 
 const channelReference = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9-]+$/);
 const optionalUuid = z.union([z.string().uuid(), z.literal("")]).nullish().transform((value) => value || null);
@@ -25,7 +26,7 @@ export type ActivePresenceRow = {
 };
 
 export function aggregateActiveListeners(rows: ActivePresenceRow[], channelId: string | null, now = Date.now()) {
-  const cutoff = now - 90_000;
+  const cutoff = now - presenceConfig.sessionTimeoutMs;
   const active = rows.filter((row) => row.player_state === "playing" && !row.is_test && new Date(row.last_seen_at).getTime() >= cutoff && new Date(row.expires_at).getTime() > now);
   return { total: active.length, channel: channelId ? active.filter((row) => row.channel_id === channelId).length : null };
 }

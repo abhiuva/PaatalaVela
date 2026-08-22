@@ -23,6 +23,9 @@ export const analyticsEventNames = [
   "sponsor_impression",
   "sponsor_clicked",
   "takedown_form_opened",
+  "channel_impression",
+  "channel_selected",
+  "listening_duration_recorded",
 ] as const satisfies readonly AnalyticsEventName[];
 
 const safeId = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/);
@@ -31,6 +34,8 @@ const deviceCategory = z.enum(["mobile", "tablet", "desktop"]);
 
 const base = z.object({
   session_id: safeId,
+  language_code: z.string().trim().min(2).max(8).optional(),
+  channel_mode: z.enum(["scheduled", "on_demand"]).optional(),
 });
 
 export const eventSchemas = {
@@ -92,6 +97,13 @@ export const eventSchemas = {
   sponsor_impression: base.extend({ campaign_id: safeId, placement_type: z.string().trim().max(40) }),
   sponsor_clicked: base.extend({ campaign_id: safeId, placement_type: z.string().trim().max(40) }),
   takedown_form_opened: base,
+  channel_impression: base.extend({ channel_id: safeId, position: z.coerce.number().int().min(1).max(100) }),
+  channel_selected: base.extend({ channel_id: safeId, previous_channel_id: safeId.optional() }),
+  listening_duration_recorded: base.extend({
+    channel_id: safeId,
+    song_id: safeId.optional(),
+    listening_seconds: z.coerce.number().int().min(0).max(24 * 60 * 60),
+  }),
 } satisfies Record<AnalyticsEventName, z.ZodType>;
 
 const blockedPersonalFields = ["email", "claimant", "claimant_email", "name", "song_title", "singer", "youtube_url", "user_agent", "supabase_user_id"];

@@ -4,6 +4,7 @@ import { resolveChannelReference } from "@/lib/analytics/channel-reference";
 import { consumeRateLimit } from "@/lib/feedback/rate-limit";
 import { presenceRequestKey } from "@/lib/presence/server";
 import { aggregateActiveListeners, presenceChannelSchema } from "@/lib/presence/validation";
+import { indiaDateKey, presenceConfig, socialProofThresholds } from "@/lib/presence/config";
 
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
 
@@ -21,14 +22,18 @@ export async function GET(request: NextRequest) {
   }) : null;
   if (parsedChannel.data && !channelId) return NextResponse.json({ ok: false, code: "PRESENCE_CHANNEL_INVALID" }, { status: 400 });
   const now = new Date();
-  const { data, error } = await supabase.from("active_listener_sessions")
-    .select("channel_id, player_state, last_seen_at, expires_at, is_test")
-    .eq("player_state", "playing")
-    .eq("is_test", false)
-    .gte("last_seen_at", new Date(now.getTime() - 90_000).toISOString())
-    .gt("expires_at", now.toISOString());
+  const [{ data, error }, dailyResult] = await Promise.all([
+    supabase.from("active_listener_sessions")
+      .select("channel_id, player_state, last_seen_at, expires_at, is_test")
+      .eq("player_state", "playing")
+      .eq("is_test", false)
+      .gte("last_seen_at", new Date(now.getTime() - presenceConfig.sessionTimeoutMs).toISOString())
+      .gt("expires_at", now.toISOString()),
+    supabase.rpc("daily_tuned_listener_count", { p_date: indiaDateKey(now) }),
+  ]);
   if (error) return NextResponse.json({ ok: false, code: "PRESENCE_COUNT_UNAVAILABLE" }, { status: 503 });
   const counts = aggregateActiveListeners(data ?? [], channelId, now.getTime());
+  const daily = dailyResult.error ? null : Number(dailyResult.data ?? 0);
   await supabase.rpc("delete_expired_listener_sessions", {});
-  return NextResponse.json({ ok: true, total: counts.total, channel: counts.channel }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ok: true, total: counts.total, channel: counts.channel, daily, asOf: now.toISOString(), thresholds: socialProofThresholds() }, { headers: { "cache-control": "no-store" } });
 }

@@ -48,6 +48,16 @@ describe("analytics validation", () => {
     expect(completionRate(9, 10)).toBe(0.9);
     expect(completionRate(1, 0)).toBe(0);
   });
+
+  it("accepts language-aware on-demand channel events", () => {
+    expect(validateAnalyticsEvent("channel_selected", {
+      session_id: "session_1",
+      channel_id: "82f73275-0c49-4fc9-991d-61d9d6e3c492",
+      previous_channel_id: "6f3fc628-a517-4dc5-a479-334d6bce7558",
+      language_code: "hi",
+      channel_mode: "on_demand",
+    }).ok).toBe(true);
+  });
 });
 
 describe("analytics consent", () => {

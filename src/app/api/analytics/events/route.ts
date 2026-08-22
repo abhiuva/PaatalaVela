@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { validateAnalyticsEvent } from "@/lib/analytics/events";
 import { resolveChannelReference } from "@/lib/analytics/channel-reference";
+import { indiaDateKey } from "@/lib/presence/config";
 
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
 
@@ -18,15 +19,6 @@ function isRateLimited(key: string) {
   }
   bucket.count += 1;
   return bucket.count > 60;
-}
-
-function eventDateIst(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
 }
 
 function maybeUuid(value: unknown) {
@@ -132,7 +124,7 @@ export async function POST(request: Request) {
   }
 
   const properties = validated.properties;
-  const metricDate = eventDateIst();
+  const metricDate = indiaDateKey();
   const channelId = await resolveChannelId(supabase, properties.channel_id);
   const songId = maybeUuid(properties.song_id);
   const { error } = await supabase.from("listening_events").insert({

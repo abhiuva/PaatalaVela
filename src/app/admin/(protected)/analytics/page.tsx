@@ -38,7 +38,7 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const [channelMetrics, sponsorMetrics, channelResult, songResult, feedbackResult, eventResult, presenceResult] = await Promise.all([
     supabase?.from("daily_channel_metrics").select("*").order("metric_date_ist", { ascending: false }).limit(180),
     supabase?.from("daily_sponsor_metrics").select("*").order("metric_date_ist", { ascending: false }).limit(180),
-    supabase?.from("channels").select("id, name"),
+    supabase?.from("channels").select("id, name, primary_language_code, channel_mode"),
     canReadFeedback ? supabase?.from("songs").select("id, title").order("title").limit(2000) : null,
     canReadFeedback ? supabase?.from("feedback_submissions").select("*").order("created_at", { ascending: false }).limit(5000) : null,
     canReadFeedback ? supabase?.from("listening_events").select("*").order("created_at", { ascending: false }).limit(1000) : null,
@@ -50,6 +50,7 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const channels = channelResult?.data ?? [];
   const songs = songResult?.data ?? [];
   const channelName = new Map(channels.map((channel) => [channel.id, channel.name]));
+  const channelMetadata = new Map(channels.map((channel) => [channel.id, channel]));
   const songName = new Map(songs.map((song) => [song.id, song.title]));
   const allFeedback = (feedbackResult?.data ?? []) as DbFeedbackSubmission[];
   const filters: FeedbackFilters = {
@@ -68,6 +69,8 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const dates = countBy((row) => row.created_at.slice(0, 10));
   const themes = feedback.flatMap((row) => row.detected_themes ?? []).reduce<Record<string, number>>((acc, theme) => { acc[theme] = (acc[theme] ?? 0) + 1; return acc; }, {});
   const totals = rows.reduce((acc, row) => ({ sessions: acc.sessions + row.listening_sessions, unique: acc.unique + row.unique_anonymous_sessions, seconds: acc.seconds + Number(row.listening_seconds), started: acc.started + row.songs_started, completed: acc.completed + row.songs_completed, skips: acc.skips + row.skips, errors: acc.errors + row.player_errors, shares: acc.shares + row.shares }), { sessions: 0, unique: 0, seconds: 0, started: 0, completed: 0, skips: 0, errors: 0, shares: 0 });
+  const sessionsByLanguage = rows.reduce<Record<string, number>>((acc, row) => { const key = channelMetadata.get(row.channel_id)?.primary_language_code ?? "unclassified"; acc[key] = (acc[key] ?? 0) + row.listening_sessions; return acc; }, {});
+  const sessionsByMode = rows.reduce<Record<string, number>>((acc, row) => { const key = channelMetadata.get(row.channel_id)?.channel_mode ?? "unclassified"; acc[key] = (acc[key] ?? 0) + row.listening_sessions; return acc; }, {});
   const sponsorTotals = sponsorRows.reduce((acc, row) => ({ impressions: acc.impressions + row.impressions, clicks: acc.clicks + row.clicks }), { impressions: 0, clicks: 0 });
   const events = excludeTestEvents(eventResult?.data ?? []);
   const testEvents = (eventResult?.data ?? []).filter((event) => event.is_test || event.properties?.is_test === true);
@@ -94,6 +97,10 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
     <section aria-labelledby="listening-kpis"><h2 id="listening-kpis" className="text-xl font-black">Listening overview</h2><div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
       {[["Sessions", totals.sessions], ["Unique sessions", totals.unique], ["Listening hours", (totals.seconds / 3600).toFixed(1)], ["Completion rate", percent(completionRate(totals.completed, totals.started) * 100)], ["Skips", totals.skips], ["Player errors", totals.errors], ["Shares", totals.shares], ["Sponsor CTR", percent(sponsorCtr(sponsorTotals.clicks, sponsorTotals.impressions) * 100)]].map(([label, amount]) => <div key={String(label)} className="rounded-lg border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase text-white/50">{label}</p><p className="mt-2 text-2xl font-black">{amount}</p></div>)}
     </div></section>
+    <section className="grid gap-4 md:grid-cols-2" aria-label="Language and channel mode usage">
+      <Distribution title="Sessions by language" entries={Object.entries(sessionsByLanguage).sort((a, b) => b[1] - a[1])} total={totals.sessions} />
+      <Distribution title="Sessions by channel mode" entries={Object.entries(sessionsByMode).sort((a, b) => b[1] - a[1])} total={totals.sessions} />
+    </section>
 
     <section aria-labelledby="health-title" className="rounded-lg border border-white/10 bg-white/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="health-title" className="text-xl font-black">Analytics health</h2><p className="mt-1 text-sm text-white/55">Behavioral events require explicit consent. Feedback is a separately classified essential pilot submission.</p></div><span className="rounded-full border border-white/15 px-3 py-1 text-sm font-black">{health}</span></div>

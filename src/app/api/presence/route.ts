@@ -4,6 +4,7 @@ import { resolveChannelReference } from "@/lib/analytics/channel-reference";
 import { consumeRateLimit } from "@/lib/feedback/rate-limit";
 import { hashPresenceSession, presenceRequestKey } from "@/lib/presence/server";
 import { isLikelyBot, presenceInputSchema } from "@/lib/presence/validation";
+import { presenceConfig } from "@/lib/presence/config";
 
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
 
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   const channelId = await resolveChannelId(supabase, parsed.data.channelSlug);
   if (!channelId) return NextResponse.json({ ok: false, code: "PRESENCE_CHANNEL_INVALID" }, { status: 400 });
   const now = Date.now();
-  const expiresAt = new Date(parsed.data.playerState === "playing" ? now + 90_000 : now).toISOString();
+  const expiresAt = new Date(parsed.data.playerState === "playing" ? now + presenceConfig.sessionTimeoutMs : now).toISOString();
   const { error } = await supabase.rpc("upsert_listener_presence", {
     p_session_hash: hashPresenceSession(parsed.data.sessionId),
     p_channel_id: channelId,

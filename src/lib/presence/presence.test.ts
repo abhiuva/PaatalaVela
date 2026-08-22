@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aggregateActiveListeners, isLikelyBot, presenceInputSchema } from "@/lib/presence/validation";
+import { indiaDateKey, socialProofThresholds } from "@/lib/presence/config";
 
 const now = Date.parse("2026-08-18T12:00:00Z");
 const row = (changes = {}) => ({ channel_id: "channel-1", player_state: "playing" as const, last_seen_at: "2026-08-18T11:59:30Z", expires_at: "2026-08-18T12:01:00Z", is_test: false, ...changes });
@@ -26,5 +27,14 @@ describe("active listener definition", () => {
   it("reasonably detects common automated user agents", () => {
     expect(isLikelyBot("Googlebot/2.1")).toBe(true);
     expect(isLikelyBot("Mozilla/5.0 Chrome/126 Safari/537.36")).toBe(false);
+  });
+
+  it("uses configurable positive social-proof thresholds", () => {
+    expect(socialProofThresholds({ SOCIAL_PROOF_DAILY_THRESHOLD: "8", SOCIAL_PROOF_CONCURRENT_THRESHOLD: "40", SOCIAL_PROOF_CHANNEL_THRESHOLD: "12" })).toEqual({ daily: 8, concurrent: 40, channel: 12 });
+  });
+
+  it("calculates the daily metric boundary in Asia/Kolkata", () => {
+    expect(indiaDateKey(new Date("2026-08-21T18:29:59Z"))).toBe("2026-08-21");
+    expect(indiaDateKey(new Date("2026-08-21T18:30:00Z"))).toBe("2026-08-22");
   });
 });

@@ -68,7 +68,7 @@ export function RadioPlayer() {
             ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-            <LiveListenerCount channelSlug={radio.channel.slug} />
+            <LiveListenerCount channelSlug={radio.channel.slug} channelName={radio.channel.name} />
             <div className="w-full rounded-lg border border-white/15 bg-black/28 p-4 text-left shadow-xl shadow-black/20 backdrop-blur sm:min-w-64 sm:text-right">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/58">India Time</p>
               <time dateTime={now.toISOString()} className="mt-1 block text-3xl font-black tabular-nums">

@@ -130,6 +130,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const lastEndedSongIdRef = useRef<string | null>(null);
   const failedSongIdsRef = useRef<Set<string>>(new Set());
   const lastLiveSyncKeyRef = useRef<string | null>(null);
+  const impressedChannelIdsRef = useRef<Set<string>>(new Set());
 
   const selectedChannel = useMemo(() => getChannelBySlug(channelSlug, availableChannels), [availableChannels, channelSlug]);
   const selectedChannelReference = selectedChannel.id;
@@ -139,6 +140,14 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const song = activeQueue.items[trackIndex] ?? activeQueue.items[0] ?? selectedChannel.songs[0];
   const nextChannel = useMemo(() => getNextChannel(selectedChannel.slug, availableChannels), [availableChannels, selectedChannel.slug]);
   const pendingScheduledSwitch = playbackMode === "live" && scheduledChannel.slug !== selectedChannel.slug;
+
+  useEffect(() => {
+    availableChannels.forEach((channel, index) => {
+      if (!channel.id || impressedChannelIdsRef.current.has(channel.id)) return;
+      impressedChannelIdsRef.current.add(channel.id);
+      trackRadioEvent("channel_impression", { channel_id: channel.id, position: index + 1, language_code: channel.languageCode, channel_mode: channel.mode });
+    });
+  }, [availableChannels]);
 
   const syncToLive = useCallback(
     (reason: "initial" | "return" | "boundary" | "visibility" | "error") => {
@@ -324,6 +333,12 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
         reason: "manual",
         playback_mode: "manual",
       });
+      trackRadioEvent("channel_selected", {
+        channel_id: nextChannelReference,
+        previous_channel_id: selectedChannelReference,
+        language_code: nextChannel.languageCode,
+        channel_mode: nextChannel.mode,
+      });
       trackRadioEvent("manual_mode_started", { channel_id: nextChannelReference });
     },
     [availableChannels, scheduledChannel.slug, selectedChannelReference],
@@ -341,6 +356,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       dispatch({ type: current ? "PAUSE" : "PLAY" });
       if (current) {
         trackRadioEvent("radio_paused", { channel_id: selectedChannelReference, listened_seconds: Math.round(currentPositionRef.current) });
+        trackRadioEvent("listening_duration_recorded", { channel_id: selectedChannelReference, ...(song ? { song_id: song.id } : {}), listening_seconds: Math.round(currentPositionRef.current), language_code: selectedChannel.languageCode, channel_mode: selectedChannel.mode });
       } else {
         trackRadioEvent("radio_started", {
           playback_mode: playbackMode,
@@ -348,11 +364,14 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
           scheduled_channel_id: scheduledChannelReference,
           source: "supabase",
           device_category: deviceCategory(),
+          language_code: selectedChannel.languageCode,
+          channel_mode: selectedChannel.mode,
         });
+        if (song) trackRadioEvent("song_started", { song_id: song.id, channel_id: selectedChannelReference, playback_mode: playbackMode, sequence: song.sequence ?? 0, started_from_seconds: Math.round(currentPositionRef.current), language_code: selectedChannel.languageCode, channel_mode: selectedChannel.mode });
       }
       return !current;
     });
-  }, [playbackMode, scheduledChannelReference, selectedChannelReference]);
+  }, [playbackMode, scheduledChannelReference, selectedChannel, selectedChannelReference, song]);
 
   const moveTrack = useCallback(
     (direction: 1 | -1) => {
@@ -384,6 +403,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       listened_seconds: Math.min(currentPositionRef.current || song.durationSeconds, song.durationSeconds),
       completion_percent: Math.min(100, Math.round(((currentPositionRef.current || song.durationSeconds) / song.durationSeconds) * 100)),
     });
+    trackRadioEvent("listening_duration_recorded", { channel_id: selectedChannelReference, song_id: song.id, listening_seconds: Math.round(Math.min(currentPositionRef.current || song.durationSeconds, song.durationSeconds)), language_code: selectedChannel.languageCode, channel_mode: selectedChannel.mode });
 
     if (pendingScheduledSwitch) {
       syncToLive("boundary");
@@ -391,7 +411,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     }
 
     loadIndex(getNextQueueIndex(activeQueue.items.length, trackIndex, 1), 0);
-  }, [activeQueue.items.length, loadIndex, pendingScheduledSwitch, selectedChannelReference, song, syncToLive, trackIndex]);
+  }, [activeQueue.items.length, loadIndex, pendingScheduledSwitch, selectedChannel, selectedChannelReference, song, syncToLive, trackIndex]);
 
   const handlePlayerError = useCallback(() => {
     if (!song) {

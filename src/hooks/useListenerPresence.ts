@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { presenceConfig } from "@/lib/presence/config";
 
 const SESSION_KEY = "paatalavela.presence-session";
-const HEARTBEAT_MS = 30_000;
 const HIDDEN_PAUSE_MS = 60_000;
 
 function browserSessionId() {
@@ -62,7 +62,7 @@ export function useListenerPresence({ isPlaying, hasUserInteracted, channelSlug,
     }
     const interval = window.setInterval(() => {
       if (isPlaying && activeRef.current && document.visibilityState === "visible") void send("playing");
-    }, HEARTBEAT_MS);
+    }, presenceConfig.heartbeatMs);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", finalSignal);
     return () => {
