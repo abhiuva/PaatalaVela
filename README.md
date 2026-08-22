@@ -58,7 +58,7 @@ If the Supabase CLI is not linked yet, run `npx supabase login`, `npx supabase l
 
 Start the app and visit `/admin/login`.
 
-The migrations insert the six locked Telugu schedule channels plus the optional on-demand English Hits channel. Public playback uses only active, available Supabase songs assigned through `channel_songs`; no placeholder media is bundled.
+The migrations insert the six locked Telugu schedule channels plus the optional on-demand English Hits and Hindi Hits channels. Public playback uses only active, available Supabase songs assigned through `channel_songs`; no placeholder media is bundled.
 
 ## Channel Schedule
 
@@ -73,21 +73,22 @@ All schedule calculations use `Asia/Kolkata`.
 | Mass Beat Centre | 21:00-23:00 |
 | Highway Ratri | 23:00-05:00 |
 | English Hits | On demand |
+| Hindi Hits | On demand |
 
-The `Highway Ratri` range crosses midnight and is covered by unit tests. English Hits is manually selectable and does not alter the six-channel Telugu schedule.
+The `Highway Ratri` range crosses midnight and is covered by unit tests. English Hits and Hindi Hits are manually selectable and do not alter the six-channel Telugu schedule.
 
 ## Song Data
 
-`src/data/channels.ts` contains display shells only and no playable fallback songs. Curate songs through the authenticated admin YouTube import workflow, which stores verified metadata in Supabase and creates an ordered `channel_songs` assignment. English Hits can remain empty until verified English songs are imported.
+`src/data/channels.ts` contains display shells only and no playable fallback songs. Curate songs through the authenticated admin YouTube import workflow, which stores verified metadata in Supabase and creates an ordered `channel_songs` assignment. On-demand channels can remain empty until verified songs in the matching language are imported.
 
 Do not download or commit audio/video files. The repository contains metadata only.
 
 ## Admin Operations
 
-- Add songs from `/admin` with title, film, release year, singers, composer, and a YouTube URL or 11-character video ID.
+- Add songs from `/admin` with core metadata, controlled language/era taxonomy, optional mood/occasion tags, and a YouTube URL or 11-character video ID.
 - Assign songs to one or more channels while adding them, or use the assignment form in the songs table.
 - Reorder songs inside a channel in the `Channel Order` section.
-- Archive songs instead of deleting them. Permanent deletion is restricted by RLS to `admin` role users and is not exposed in the Sprint 2 UI.
+- Remove one channel relationship, move an assignment, or soft-delete a song through distinct confirmed controls. Soft delete preserves analytics and feedback history.
 - Channel schedules are displayed as read-only fields and cannot be edited in Sprint 2.
 - Public takedown requests are submitted at `/takedown` and moderated in `/admin`.
 - Sponsors and campaigns are managed at `/admin/sponsors`.
@@ -158,6 +159,9 @@ ANALYTICS_INGESTION_SECRET
 ANALYTICS_RETENTION_DAYS
 SENTIMENT_API_URL
 SENTIMENT_API_KEY
+SOCIAL_PROOF_DAILY_THRESHOLD
+SOCIAL_PROOF_CONCURRENT_THRESHOLD
+SOCIAL_PROOF_CHANNEL_THRESHOLD
 ```
 
 Keep `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `ANALYTICS_INGESTION_SECRET` and `SENTIMENT_API_KEY` server-only. Set `NEXT_PUBLIC_SITE_URL` to the final HTTPS site URL, then add that URL and its `/admin/login` callback to the Supabase Auth URL configuration.
@@ -173,3 +177,10 @@ Keep `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `ANALYTICS_INGESTION_SECRET
 - `docs/ADMIN_SEQUENCE_GUIDE.md`
 - `docs/SPRINT_4_LAUNCH_READINESS.md`
 - `docs/SUPABASE_ADMIN_SETUP.md`
+- `docs/DEVELOPMENT_BACKLOG_AUDIT.md`
+- `docs/PHASE1_IMPLEMENTATION_REPORT.md`
+- `docs/CONTENT_TAXONOMY.md`
+- `docs/LISTENER_PRESENCE_DEFINITION.md`
+- `docs/ON_DEMAND_CHANNELS.md`
+- `docs/FEEDBACK_UUID_FIX.md`
+- `docs/PHASE1_EXIT_CRITERIA.md`
