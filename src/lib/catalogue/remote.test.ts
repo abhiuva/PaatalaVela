@@ -19,6 +19,10 @@ const baseSong: DbSong = {
   youtube_music_url: null,
   editorial_note: null,
   editorial_note_telugu: null,
+  language_code: "te",
+  era_code: "2020s",
+  song_story: null,
+  context: null,
   thumbnail_url: null,
   embed_status: "available",
   last_checked_at: null,
@@ -44,6 +48,8 @@ function channelRow(slug: string, index: number, songs: DbSong[] = []): ChannelW
     accent_color: local.palette.accent,
     display_order: index + 1,
     scheduled: local.scheduled,
+    channel_mode: local.mode,
+    primary_language_code: local.languageCode,
     active: true,
     created_at: "2026-08-18T00:00:00.000Z",
     updated_at: "2026-08-18T00:00:00.000Z",
@@ -55,7 +61,7 @@ function channelRow(slug: string, index: number, songs: DbSong[] = []): ChannelW
       weight: 1,
       active: true,
       created_at: `2026-08-18T00:00:0${songIndex}.000Z`,
-      songs: song,
+      songs: { ...song, song_moods: [], song_occasions: [] },
     })),
   };
 }
@@ -89,17 +95,19 @@ describe("Supabase public catalogue mapping", () => {
     expect(suprabhata?.songs).toEqual([]);
   });
 
-  it("includes English Hits as an empty on-demand Supabase channel with a UUID", () => {
+  it("includes English and Hindi Hits as empty on-demand Supabase channels with UUIDs", () => {
     const catalogue = buildSupabaseCatalogue(allChannelRows());
     const english = catalogue.channels.find((channel) => channel.slug === "english-hits");
+    const hindi = catalogue.channels.find((channel) => channel.slug === "hindi-hits");
 
-    expect(catalogue.channels).toHaveLength(7);
+    expect(catalogue.channels).toHaveLength(8);
     expect(english).toMatchObject({
       id: "00000000-0000-4000-8000-000000000007",
       slug: "english-hits",
       scheduled: false,
       songs: [],
     });
+    expect(hindi).toMatchObject({ id: "00000000-0000-4000-8000-000000000008", slug: "hindi-hits", mode: "on_demand", languageCode: "hi", songs: [] });
   });
 
   it("does not mark valid Supabase response as fallback when only some channels have songs", () => {

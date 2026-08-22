@@ -9,6 +9,7 @@ const youtubeImportMigration = readFileSync(path.join(process.cwd(), "supabase/m
 const feedbackMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818120000_sprint6_feedback.sql"), "utf8");
 const presenceMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818143000_sprint6_1_active_listeners.sql"), "utf8");
 const englishCleanupMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260819120000_add_english_hits_cleanup_placeholders.sql"), "utf8");
+const phase1Migration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260822203000_phase1_content_platform.sql"), "utf8");
 const repository = readFileSync(path.join(process.cwd(), "src/lib/catalogue/repository.ts"), "utf8");
 const remoteCatalogue = readFileSync(path.join(process.cwd(), "src/lib/catalogue/remote.ts"), "utf8");
 const feedbackActions = readFileSync(path.join(process.cwd(), "src/app/admin/(protected)/analytics/actions.ts"), "utf8");
@@ -101,5 +102,36 @@ describe("RLS migration", () => {
     expect(englishCleanupMigration).toContain("and title ilike '%Placeholder%'");
     expect(englishCleanupMigration).toContain("and embed_status = 'unchecked'");
     expect(englishCleanupMigration).not.toContain("delete from public.songs;");
+  });
+
+  it("adds controlled taxonomy with protected public and editor policies", () => {
+    for (const table of ["content_languages", "content_eras", "content_moods", "content_occasions", "song_moods", "song_occasions"]) {
+      expect(phase1Migration).toContain(`alter table public.${table} enable row level security`);
+    }
+    expect(phase1Migration).toContain("songs_language_active_idx");
+    expect(phase1Migration).toContain("songs_era_active_idx");
+    expect(phase1Migration).toContain("songs_song_story_length_check");
+  });
+
+  it("uses transactional service-only catalogue safety functions", () => {
+    expect(phase1Migration).toContain("unlink_channel_song");
+    expect(phase1Migration).toContain("soft_delete_catalogue_song");
+    expect(phase1Migration).toContain("move_channel_song");
+    expect(phase1Migration).toContain("catalogue_admin_events");
+    expect(phase1Migration).toContain("grant execute on function public.unlink_channel_song(uuid, uuid) to service_role");
+  });
+
+  it("launches Hindi Hits as an empty on-demand Hindi channel without songs", () => {
+    expect(phase1Migration).toContain("82f73275-0c49-4fc9-991d-61d9d6e3c492");
+    expect(phase1Migration).toContain("'hindi-hits'");
+    expect(phase1Migration).toContain("false, 'on_demand', 'hi', true");
+    expect(phase1Migration).not.toMatch(/insert into public\.songs[\s\S]*hindi-hits/i);
+    expect(phase1Migration).toContain("Hindi Hits accepts only active verified songs");
+  });
+
+  it("keeps daily listener identities inside a service-only aggregate function", () => {
+    expect(phase1Migration).toContain("daily_tuned_listener_count");
+    expect(phase1Migration).toContain("count(distinct anonymous_session_id)");
+    expect(phase1Migration).toContain("grant execute on function public.daily_tuned_listener_count(date) to service_role");
   });
 });

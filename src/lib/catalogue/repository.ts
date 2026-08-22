@@ -18,7 +18,7 @@ export class CatalogueRepository {
 
     const { data, error } = await supabase
       .from("channels")
-      .select("*, channel_songs(*, songs(*))")
+      .select("*, channel_songs(*, songs(*, song_moods(mood_code), song_occasions(occasion_code)))")
       .eq("active", true)
       .eq("channel_songs.active", true)
       .order("display_order", { ascending: true })

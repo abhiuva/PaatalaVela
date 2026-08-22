@@ -22,8 +22,9 @@ describe("public catalogue filtering", () => {
   it("provides channel shells without active fallback songs", () => {
     const fallback = getLocalCatalogue("test fallback");
     expect(fallback.source).toBe("local");
-    expect(fallback.channels).toHaveLength(7);
+    expect(fallback.channels).toHaveLength(8);
     expect(fallback.channels.find((channel) => channel.slug === "english-hits")).toMatchObject({ scheduled: false, songs: [] });
+    expect(fallback.channels.find((channel) => channel.slug === "hindi-hits")).toMatchObject({ scheduled: false, mode: "on_demand", languageCode: "hi", songs: [] });
     expect(fallback.channels.every((channel) => channel.songs.length === 0)).toBe(true);
     expect(fallback.fallbackReason).toBe("test fallback");
   });

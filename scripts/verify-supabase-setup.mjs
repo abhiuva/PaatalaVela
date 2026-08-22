@@ -13,6 +13,7 @@ const EXPECTED_CHANNELS = [
   ["mass-beat-centre", 21, 23, true],
   ["highway-ratri", 23, 5, true],
   ["english-hits", 0, 0, false],
+  ["hindi-hits", 0, 0, false],
 ];
 const EXPECTED_TABLES = [
   "channels",
@@ -29,6 +30,13 @@ const EXPECTED_TABLES = [
   "youtube_import_queue",
   "feedback_submissions",
   "active_listener_sessions",
+  "content_languages",
+  "content_eras",
+  "content_moods",
+  "content_occasions",
+  "song_moods",
+  "song_occasions",
+  "catalogue_admin_events",
 ];
 
 function loadEnvLocal() {
@@ -144,7 +152,7 @@ async function main() {
     channelSeedOk = channelSeedOk && seenChannels.size === EXPECTED_CHANNELS.length;
     if (!channelSeedOk) failures += 1;
   }
-  reportLine("six locked channels and English Hits seeded with expected scheduling", channelSeedOk, channelsError?.message);
+  reportLine("six locked channels plus English and Hindi on-demand channels seeded", channelSeedOk, channelsError?.message);
 
   const adminSchema = await schemaProbe(service, "admin_profiles", "id,display_name,role,active,created_at");
   const adminCount = await headCount(service, "admin_profiles", "id");

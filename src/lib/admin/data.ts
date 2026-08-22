@@ -8,9 +8,14 @@ export type AdminAssignment = DbChannelSong & {
   songs: Pick<DbSong, "id" | "title" | "youtube_video_id" | "active" | "embed_status" | "duration_seconds"> | null;
 };
 
+export type AdminSong = DbSong & {
+  song_moods: Array<{ mood_code: string }>;
+  song_occasions: Array<{ occasion_code: string }>;
+};
+
 export type AdminDashboardData = {
   channels: DbChannel[];
-  songs: DbSong[];
+  songs: AdminSong[];
   assignments: AdminAssignment[];
   takedowns: DbTakedownRequest[];
   profiles: DbAdminProfile[];
@@ -35,7 +40,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const [channels, songs, assignments, takedowns, profiles, youtubeImportQueue] = await Promise.all([
     supabase.from("channels").select("*").order("display_order", { ascending: true }),
-    supabase.from("songs").select("*").order("created_at", { ascending: false }),
+    supabase.from("songs").select("*, song_moods(mood_code), song_occasions(occasion_code)").order("created_at", { ascending: false }),
     supabase
       .from("channel_songs")
       .select("*, channels(id, name, slug), songs(id, title, youtube_video_id, active, embed_status, duration_seconds)")
@@ -48,7 +53,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return {
     channels: channels.data ?? [],
-    songs: songs.data ?? [],
+    songs: (songs.data ?? []) as AdminSong[],
     assignments: (assignments.data ?? []) as AdminAssignment[],
     takedowns: takedowns.data ?? [],
     profiles: profiles.data ?? [],

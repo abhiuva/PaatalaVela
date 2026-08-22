@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ChannelSlug } from "@/types/radio";
+import { eraCodes, languageCodes, moodCodes, occasionCodes } from "@/lib/catalogue/taxonomy";
 
 export const youtubeVideoIdSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{11}$/, "Use an 11-character YouTube video ID.");
 
@@ -72,9 +73,24 @@ export const songInputSchema = z.object({
   youtubeMusicUrl: externalUrlSchema,
   editorialNote: optionalTextSchema(1000, "Editorial note"),
   editorialNoteTelugu: optionalTextSchema(1000, "Telugu editorial note"),
+  languageCode: z.enum(languageCodes, { error: "Choose a supported language." }),
+  eraCode: z.enum(eraCodes, { error: "Choose a supported era." }),
+  moodCodes: z.array(z.enum(moodCodes)).max(moodCodes.length),
+  occasionCodes: z.array(z.enum(occasionCodes)).max(occasionCodes.length),
+  songStory: optionalTextSchema(320, "Song story"),
+  context: optionalTextSchema(240, "Context"),
   thumbnailUrl: externalUrlSchema,
   embedStatus: z.enum(["unchecked", "available", "unavailable", "embedding_disabled", "region_restricted"]),
   channelIds: z.array(z.string()).default([]),
+});
+
+export const taxonomyInputSchema = z.object({
+  languageCode: z.enum(languageCodes, { error: "Choose a supported language." }),
+  eraCode: z.enum(eraCodes, { error: "Choose a supported era." }),
+  moodCodes: z.array(z.enum(moodCodes)).max(moodCodes.length),
+  occasionCodes: z.array(z.enum(occasionCodes)).max(occasionCodes.length),
+  songStory: optionalTextSchema(320, "Song story"),
+  context: optionalTextSchema(240, "Context"),
 });
 
 export const channelInputSchema = z.object({
@@ -140,13 +156,5 @@ export const songRequestInputSchema = z.object({
 });
 
 export function isLockedChannelSlug(value: string): value is ChannelSlug {
-  return [
-    "suprabhata-melodies",
-    "tea-shop-classics",
-    "ilaiyaraaja-era",
-    "prema-viraham",
-    "mass-beat-centre",
-    "highway-ratri",
-    "english-hits",
-  ].includes(value);
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 80;
 }

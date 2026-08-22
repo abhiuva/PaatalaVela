@@ -44,6 +44,8 @@ describe("YouTube import assignment", () => {
       releaseYear: 2026,
       singers: "Verified Artist",
       composer: "Verified Composer",
+      languageCode: "en",
+      eraCode: "2020s",
     });
 
     expect(result).toEqual({ status: "imported", songId: SONG_ID });

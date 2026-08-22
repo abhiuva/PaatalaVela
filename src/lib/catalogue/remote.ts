@@ -10,7 +10,12 @@ export type ChannelSongJoin = DbChannelSong & {
 };
 
 export type ChannelWithSongs = DbChannel & {
-  channel_songs: ChannelSongJoin[] | null;
+  channel_songs: Array<ChannelSongJoin & {
+    songs: (DbSong & {
+      song_moods?: Array<{ mood_code: string }> | null;
+      song_occasions?: Array<{ occasion_code: string }> | null;
+    }) | null;
+  }> | null;
 };
 
 function toChannel(row: ChannelWithSongs): Channel | null {
@@ -44,6 +49,13 @@ function toChannel(row: ChannelWithSongs): Channel | null {
         year: song.release_year,
         singers: song.singers,
         composer: song.composer,
+        thumbnailUrl: song.thumbnail_url,
+        story: song.song_story ?? null,
+        context: song.context ?? null,
+        languageCode: song.language_code ?? row.primary_language_code ?? "te",
+        eraCode: song.era_code ?? `${Math.floor(song.release_year / 10) * 10}s`,
+        moods: song.song_moods?.map((item) => item.mood_code) ?? [],
+        occasions: song.song_occasions?.map((item) => item.occasion_code) ?? [],
         youtubeVideoId: song.youtube_video_id,
         durationSeconds: song.duration_seconds,
         sequence: assignment.sequence,
@@ -53,15 +65,19 @@ function toChannel(row: ChannelWithSongs): Channel | null {
       };
     })
     .filter((song): song is Song => Boolean(song));
+  const mode = row.channel_mode ?? ((row.scheduled ?? local?.scheduled ?? true) ? "scheduled" : "on_demand");
 
   return {
     id: row.id,
     slug: row.slug,
-    scheduled: row.scheduled ?? local?.scheduled ?? true,
+    mode,
+    scheduled: mode === "scheduled",
+    languageCode: row.primary_language_code ?? local?.languageCode ?? "te",
     name: row.name,
     teluguName: row.telugu_name,
     strapline: row.positioning,
     mood: local?.mood ?? row.positioning,
+    backgroundImageUrl: row.background_image_url,
     schedule: {
       startHour: row.start_hour,
       endHour: row.end_hour,
@@ -84,7 +100,7 @@ function validateChannelShell(channels: Channel[]) {
   return localChannels.every((local) => {
     const channel = channels.find((item) => item.slug === local.slug);
     return channel
-      && channel.scheduled === local.scheduled
+      && channel.mode === local.mode
       && channel.schedule.startHour === local.schedule.startHour
       && channel.schedule.endHour === local.schedule.endHour;
   });

@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { createSupabaseAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/admin/auth";
-import { channelInputSchema, extractYouTubeVideoId, songInputSchema, youtubeVideoIdSchema } from "@/lib/catalogue/validation";
+import { channelInputSchema, extractYouTubeVideoId, songInputSchema, taxonomyInputSchema, youtubeVideoIdSchema } from "@/lib/catalogue/validation";
 import { createSongWithAssignment, findDuplicateSongId, nextSequenceForChannel, suggestedMetadataFromQueue } from "@/lib/youtube/import-service";
 import { assertSupportedVideoInput, parseYouTubePlaylistInput, queueStatusForMetadata, type YouTubeVideoMetadata } from "@/lib/youtube/import";
 import { fetchOneYouTubeVideoMetadata, fetchYouTubePlaylistVideoIds, fetchYouTubeVideoMetadata } from "@/lib/youtube/server";
+import { eraForYear, sanitizeEditorialText } from "@/lib/catalogue/taxonomy";
+import { isUuid } from "@/lib/validation/uuid";
 import type { DbYouTubeImportQueue, EmbedStatus, TakedownStatus } from "@/types/database";
 
 type ActionResult = {
@@ -39,6 +41,33 @@ function listFromCsv(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+async function channelTaxonomy(supabase: NonNullable<ReturnType<typeof createServiceSupabaseClient>>, channelId: string, releaseYear: number) {
+  const { data, error } = await supabase.from("channels").select("primary_language_code").eq("id", channelId).eq("active", true).single();
+  if (error || !data?.primary_language_code) throw new Error("Selected channel taxonomy is unavailable.");
+  return { languageCode: data.primary_language_code, eraCode: eraForYear(releaseYear) };
+}
+
+async function replaceSongTags(
+  supabase: NonNullable<ReturnType<typeof createServiceSupabaseClient>>,
+  songId: string,
+  moodCodes: string[],
+  occasionCodes: string[],
+) {
+  const [moodDelete, occasionDelete] = await Promise.all([
+    supabase.from("song_moods").delete().eq("song_id", songId),
+    supabase.from("song_occasions").delete().eq("song_id", songId),
+  ]);
+  if (moodDelete.error || occasionDelete.error) throw new Error("Unable to replace existing taxonomy tags.");
+  if (moodCodes.length) {
+    const { error } = await supabase.from("song_moods").insert(moodCodes.map((moodCode) => ({ song_id: songId, mood_code: moodCode })));
+    if (error) throw new Error("Unable to save mood tags.");
+  }
+  if (occasionCodes.length) {
+    const { error } = await supabase.from("song_occasions").insert(occasionCodes.map((occasionCode) => ({ song_id: songId, occasion_code: occasionCode })));
+    if (error) throw new Error("Unable to save occasion tags.");
+  }
 }
 
 function formValues(formData: FormData, fields: string[]) {
@@ -91,6 +120,10 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
     "youtubeMusicUrl",
     "editorialNote",
     "editorialNoteTelugu",
+    "languageCode",
+    "eraCode",
+    "songStory",
+    "context",
     "thumbnailUrl",
     "embedStatus",
   ]);
@@ -108,6 +141,12 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
     youtubeMusicUrl: formData.get("youtubeMusicUrl"),
     editorialNote: formData.get("editorialNote"),
     editorialNoteTelugu: formData.get("editorialNoteTelugu"),
+    languageCode: formData.get("languageCode"),
+    eraCode: formData.get("eraCode"),
+    moodCodes: formData.getAll("moodCodes"),
+    occasionCodes: formData.getAll("occasionCodes"),
+    songStory: formData.get("songStory"),
+    context: formData.get("context"),
     thumbnailUrl: formData.get("thumbnailUrl"),
     embedStatus: formData.get("embedStatus") || "unchecked",
     channelIds,
@@ -120,6 +159,15 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
   const youtubeVideoId = extractYouTubeVideoId(parsed.data.youtubeInput);
   if (!youtubeVideoId) {
     return safeActionError("Use a valid YouTube URL or 11-character video ID.", "ADMIN_YOUTUBE_INPUT_INVALID", "youtubeInput", values);
+  }
+
+  if (channelIds.length > 0) {
+    const channelResult = await supabase.from("channels").select("id,primary_language_code").in("id", channelIds);
+    const mismatch = channelResult.error || (channelResult.data ?? []).length !== channelIds.length
+      || (channelResult.data ?? []).some((channel) => channel.primary_language_code !== parsed.data.languageCode);
+    if (mismatch) {
+      return safeActionError("Song language must match every selected channel language.", "ADMIN_SONG_LANGUAGE_MISMATCH", "languageCode", values);
+    }
   }
 
   const songId = String(formData.get("songId") ?? "");
@@ -138,6 +186,10 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
     youtube_music_url: parsed.data.youtubeMusicUrl || null,
     editorial_note: parsed.data.editorialNote || null,
     editorial_note_telugu: parsed.data.editorialNoteTelugu || null,
+    language_code: parsed.data.languageCode,
+    era_code: parsed.data.eraCode,
+    song_story: sanitizeEditorialText(parsed.data.songStory, 320),
+    context: sanitizeEditorialText(parsed.data.context, 240),
     thumbnail_url: parsed.data.thumbnailUrl || null,
     embed_status: parsed.data.embedStatus,
     active: true,
@@ -157,6 +209,11 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
   }
 
   const savedSongId = saveResult.data.id;
+  try {
+    await replaceSongTags(supabase, savedSongId, parsed.data.moodCodes, parsed.data.occasionCodes);
+  } catch (error) {
+    return safeActionError(error instanceof Error ? error.message : "Unable to save song taxonomy.", "ADMIN_SONG_TAXONOMY_FAILED", "moodCodes", values);
+  }
   if (channelIds.length > 0) {
     const existing = await supabase.from("channel_songs").select("channel_id").eq("song_id", savedSongId);
     const existingChannelIds = new Set((existing.data ?? []).map((row) => row.channel_id));
@@ -221,7 +278,7 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
   const youtubeVideoId = String(formData.get("youtubeVideoId") ?? "");
   const channelId = String(formData.get("channelId") ?? "");
   const sequence = Number(formData.get("sequence") ?? 0);
-  const values = formValues(formData, ["youtubeVideoId", "title", "film", "releaseYear", "singers", "composer", "lyricist", "teluguTitle", "channelId", "sequence"]);
+  const values = formValues(formData, ["youtubeVideoId", "title", "film", "releaseYear", "singers", "composer", "lyricist", "teluguTitle", "channelId", "sequence", "languageCode", "eraCode", "songStory", "context"]);
 
   if (!youtubeVideoIdSchema.safeParse(youtubeVideoId).success) return safeActionError("YouTube video ID is invalid.", "ADMIN_YOUTUBE_ID_INVALID", "youtubeVideoId", values);
   if (!channelId) return safeActionError("Choose one website mood channel before importing.", "ADMIN_IMPORT_CHANNEL_REQUIRED", "channelId", values);
@@ -236,6 +293,23 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
   if (!Number.isInteger(releaseYear) || releaseYear < 1900 || releaseYear > 2100) {
     return safeActionError("Release year must be between 1900 and 2100.", "ADMIN_IMPORT_RELEASE_YEAR_INVALID", "releaseYear", values);
   }
+  const taxonomy = taxonomyInputSchema.safeParse({
+    languageCode: formData.get("languageCode"),
+    eraCode: formData.get("eraCode"),
+    moodCodes: formData.getAll("moodCodes"),
+    occasionCodes: formData.getAll("occasionCodes"),
+    songStory: formData.get("songStory"),
+    context: formData.get("context"),
+  });
+  if (!taxonomy.success) return validationFailure(taxonomy.error, values);
+  try {
+    const requiredTaxonomy = await channelTaxonomy(supabase, channelId, releaseYear);
+    if (requiredTaxonomy.languageCode !== taxonomy.data.languageCode) {
+      return safeActionError("Song language must match the selected channel language.", "ADMIN_IMPORT_LANGUAGE_MISMATCH", "languageCode", values);
+    }
+  } catch (error) {
+    return safeActionError(error instanceof Error ? error.message : "Channel taxonomy is unavailable.", "ADMIN_IMPORT_CHANNEL_TAXONOMY_FAILED", "channelId", values);
+  }
 
   try {
     const result = await createSongWithAssignment(supabase, {
@@ -249,6 +323,12 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
       singers: String(formData.get("singers") ?? ""),
       composer: String(formData.get("composer") ?? ""),
       lyricist: String(formData.get("lyricist") ?? ""),
+      languageCode: taxonomy.data.languageCode,
+      eraCode: taxonomy.data.eraCode,
+      moodCodes: taxonomy.data.moodCodes,
+      occasionCodes: taxonomy.data.occasionCodes,
+      songStory: sanitizeEditorialText(taxonomy.data.songStory, 320),
+      context: sanitizeEditorialText(taxonomy.data.context, 240),
     });
     revalidatePath("/admin");
     revalidatePath("/");
@@ -313,7 +393,17 @@ export async function importYouTubePlaylistAction(_previousState: ActionResult |
   }
 }
 
-async function importQueueItem(supabase: NonNullable<Awaited<ReturnType<typeof requireActionAdmin>>["supabase"]>, item: DbYouTubeImportQueue, override?: { channelId?: string; sequence?: number }) {
+type QueueImportOverride = {
+  channelId?: string;
+  sequence?: number;
+  title?: string;
+  film?: string;
+  singers?: string;
+  composer?: string;
+  releaseYear?: number;
+};
+
+async function importQueueItem(supabase: NonNullable<Awaited<ReturnType<typeof requireActionAdmin>>["supabase"]>, item: DbYouTubeImportQueue, override?: QueueImportOverride) {
   if (item.status === "imported") return { youtubeVideoId: item.youtube_video_id, status: "duplicate", message: "Already imported" };
   if (item.duplicate_song_id) {
     await supabase.from("youtube_import_queue").update({ status: "duplicate", reviewed_at: new Date().toISOString() }).eq("id", item.id);
@@ -330,18 +420,27 @@ async function importQueueItem(supabase: NonNullable<Awaited<ReturnType<typeof r
 
   const metadata = await fetchOneYouTubeVideoMetadata(item.youtube_video_id);
   const suggestions = suggestedMetadataFromQueue(item);
-  const releaseYear = Number(suggestions.releaseYear || metadata.publishedAt?.slice(0, 4) || 2000);
+  const title = override?.title?.trim() || suggestions.title.trim();
+  const film = override?.film?.trim() || suggestions.film.trim();
+  const singers = override?.singers?.trim() || suggestions.singers.trim();
+  const composer = override?.composer?.trim() || suggestions.composer.trim();
+  const releaseYear = override?.releaseYear || Number(suggestions.releaseYear);
+  if (!title || !film || !singers || !composer || !Number.isInteger(releaseYear) || releaseYear < 1900 || releaseYear > 2100) {
+    return { youtubeVideoId: item.youtube_video_id, status: "needs review", message: "Confirm title, film, year, singers and composer before import" };
+  }
+  const taxonomy = await channelTaxonomy(supabase, channelId, releaseYear);
   const result = await createSongWithAssignment(supabase, {
     metadata,
     channelId,
     sequence,
-    title: suggestions.title || item.source_title,
+    title,
     teluguTitle: suggestions.teluguTitle,
-    film: suggestions.film || "Unknown Film",
-    releaseYear: Number.isInteger(releaseYear) ? releaseYear : 2000,
-    singers: suggestions.singers || "Unknown Singer",
-    composer: suggestions.composer || "Unknown Composer",
+    film,
+    releaseYear,
+    singers,
+    composer,
     lyricist: suggestions.lyricist,
+    ...taxonomy,
   });
   await supabase
     .from("youtube_import_queue")
@@ -357,7 +456,15 @@ export async function importQueuedYouTubeItemAction(formData: FormData) {
   const channelId = String(formData.get("channelId") ?? "");
   const sequence = Number(formData.get("sequence") ?? 0);
   const { data: item } = await supabase.from("youtube_import_queue").select("*").eq("id", itemId).single();
-  if (item) await importQueueItem(supabase, item as DbYouTubeImportQueue, { channelId, sequence });
+  if (item) await importQueueItem(supabase, item as DbYouTubeImportQueue, {
+    channelId,
+    sequence,
+    title: String(formData.get("title") ?? ""),
+    film: String(formData.get("film") ?? ""),
+    releaseYear: Number(formData.get("releaseYear") ?? 0),
+    singers: String(formData.get("singers") ?? ""),
+    composer: String(formData.get("composer") ?? ""),
+  });
   revalidatePath("/admin");
   revalidatePath("/");
 }
@@ -440,6 +547,7 @@ export async function assignSongAction(formData: FormData) {
   const songId = String(formData.get("songId") ?? "");
   const channelId = String(formData.get("channelId") ?? "");
   const sequence = Number(formData.get("sequence") ?? 999);
+  if (!isUuid(songId) || !isUuid(channelId) || !Number.isInteger(sequence) || sequence < 1) return;
   await supabase.from("channel_songs").upsert({ song_id: songId, channel_id: channelId, sequence, active: true }, { onConflict: "channel_id,song_id" });
   revalidatePath("/admin");
   revalidatePath("/");
@@ -486,13 +594,46 @@ export async function moveAssignmentAction(formData: FormData) {
 }
 
 export async function removeAssignmentAction(formData: FormData) {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) {
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") {
     return;
   }
 
   const assignmentId = String(formData.get("assignmentId") ?? "");
-  await supabase.from("channel_songs").update({ active: false }).eq("id", assignmentId);
+  if (!isUuid(assignmentId) || formData.get("confirmation") !== "REMOVE") return;
+  await supabase.rpc("unlink_channel_song", { p_assignment_id: assignmentId, p_actor_id: context.userId });
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function moveSongAssignmentAction(formData: FormData) {
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") return;
+  const assignmentId = String(formData.get("assignmentId") ?? "");
+  const targetChannelId = String(formData.get("targetChannelId") ?? "");
+  const sequence = Number(formData.get("sequence") ?? 1);
+  if (!isUuid(assignmentId) || !isUuid(targetChannelId) || !Number.isInteger(sequence) || sequence < 1 || formData.get("confirmation") !== "MOVE") return;
+  await supabase.rpc("move_channel_song", {
+    p_assignment_id: assignmentId,
+    p_target_channel_id: targetChannelId,
+    p_sequence: sequence,
+    p_actor_id: context.userId,
+  });
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function deleteSongAction(formData: FormData) {
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") return;
+  const songId = String(formData.get("songId") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+  if (!isUuid(songId) || confirmation !== "DELETE") return;
+  await supabase.rpc("soft_delete_catalogue_song", {
+    p_song_id: songId,
+    p_actor_id: context.userId,
+    p_confirmation: confirmation,
+  });
   revalidatePath("/admin");
   revalidatePath("/");
 }

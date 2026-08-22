@@ -22,7 +22,10 @@ export type AnalyticsEventName =
   | "song_request_submitted"
   | "sponsor_impression"
   | "sponsor_clicked"
-  | "takedown_form_opened";
+  | "takedown_form_opened"
+  | "channel_impression"
+  | "channel_selected"
+  | "listening_duration_recorded";
 export type SponsorPlacementType = "homepage" | "channel" | "now_playing" | "schedule" | "footer";
 export type SponsorCampaignStatus = "draft" | "scheduled" | "active" | "paused" | "completed";
 export type SongRequestStatus = "new" | "reviewing" | "accepted" | "rejected" | "duplicate";
@@ -32,6 +35,7 @@ export type FeedbackCategory = "music_selection" | "playback" | "channel_experie
 export type SentimentStatus = "pending" | "processing" | "completed" | "failed" | "manually_reviewed";
 export type SentimentLabel = "positive" | "neutral" | "negative" | "mixed";
 export type ListenerPlayerState = "playing" | "paused" | "stopped";
+export type ChannelMode = "scheduled" | "on_demand";
 
 export type Database = {
   public: {
@@ -51,6 +55,8 @@ export type Database = {
           accent_color: string;
           display_order: number;
           scheduled: boolean;
+          channel_mode: ChannelMode;
+          primary_language_code: string;
           active: boolean;
           created_at: string;
           updated_at: string;
@@ -69,11 +75,37 @@ export type Database = {
           accent_color: string;
           display_order: number;
           scheduled?: boolean;
+          channel_mode?: ChannelMode;
+          primary_language_code?: string;
           active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["channels"]["Insert"]>;
+        Relationships: [];
+      };
+      content_languages: {
+        Row: { code: string; name: string; native_name: string; display_order: number; active: boolean };
+        Insert: { code: string; name: string; native_name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_languages"]["Insert"]>;
+        Relationships: [];
+      };
+      content_eras: {
+        Row: { code: string; name: string; start_year: number | null; end_year: number | null; display_order: number; active: boolean };
+        Insert: { code: string; name: string; start_year?: number | null; end_year?: number | null; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_eras"]["Insert"]>;
+        Relationships: [];
+      };
+      content_moods: {
+        Row: { code: string; name: string; display_order: number; active: boolean };
+        Insert: { code: string; name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_moods"]["Insert"]>;
+        Relationships: [];
+      };
+      content_occasions: {
+        Row: { code: string; name: string; display_order: number; active: boolean };
+        Insert: { code: string; name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_occasions"]["Insert"]>;
         Relationships: [];
       };
       songs: {
@@ -93,6 +125,10 @@ export type Database = {
           youtube_music_url: string | null;
           editorial_note: string | null;
           editorial_note_telugu: string | null;
+          language_code: string;
+          era_code: string;
+          song_story: string | null;
+          context: string | null;
           thumbnail_url: string | null;
           embed_status: EmbedStatus;
           last_checked_at: string | null;
@@ -116,6 +152,10 @@ export type Database = {
           youtube_music_url?: string | null;
           editorial_note?: string | null;
           editorial_note_telugu?: string | null;
+          language_code: string;
+          era_code: string;
+          song_story?: string | null;
+          context?: string | null;
           thumbnail_url?: string | null;
           embed_status?: EmbedStatus;
           last_checked_at?: string | null;
@@ -162,6 +202,54 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      song_moods: {
+        Row: { song_id: string; mood_code: string; created_at: string };
+        Insert: { song_id: string; mood_code: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["song_moods"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "song_moods_song_id_fkey";
+            columns: ["song_id"];
+            isOneToOne: false;
+            referencedRelation: "songs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "song_moods_mood_code_fkey";
+            columns: ["mood_code"];
+            isOneToOne: false;
+            referencedRelation: "content_moods";
+            referencedColumns: ["code"];
+          },
+        ];
+      };
+      song_occasions: {
+        Row: { song_id: string; occasion_code: string; created_at: string };
+        Insert: { song_id: string; occasion_code: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["song_occasions"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "song_occasions_song_id_fkey";
+            columns: ["song_id"];
+            isOneToOne: false;
+            referencedRelation: "songs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "song_occasions_occasion_code_fkey";
+            columns: ["occasion_code"];
+            isOneToOne: false;
+            referencedRelation: "content_occasions";
+            referencedColumns: ["code"];
+          },
+        ];
+      };
+      catalogue_admin_events: {
+        Row: { id: string; action: "channel_unlinked" | "song_soft_deleted" | "assignment_moved"; song_id: string | null; channel_id: string | null; actor_id: string | null; details: Record<string, unknown>; created_at: string };
+        Insert: { id?: string; action: "channel_unlinked" | "song_soft_deleted" | "assignment_moved"; song_id?: string | null; channel_id?: string | null; actor_id?: string | null; details?: Record<string, unknown>; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["catalogue_admin_events"]["Insert"]>;
+        Relationships: [];
       };
       admin_profiles: {
         Row: {
@@ -559,6 +647,10 @@ export type Database = {
         };
         Returns: number;
       };
+      daily_tuned_listener_count: {
+        Args: { p_date: string };
+        Returns: number;
+      };
       upsert_listener_presence: {
         Args: {
           p_session_hash: string;
@@ -573,6 +665,18 @@ export type Database = {
       delete_expired_listener_sessions: {
         Args: Record<string, never>;
         Returns: number;
+      };
+      unlink_channel_song: {
+        Args: { p_assignment_id: string; p_actor_id: string };
+        Returns: Record<string, unknown>;
+      };
+      soft_delete_catalogue_song: {
+        Args: { p_song_id: string; p_actor_id: string; p_confirmation: string };
+        Returns: Record<string, unknown>;
+      };
+      move_channel_song: {
+        Args: { p_assignment_id: string; p_target_channel_id: string; p_sequence: number; p_actor_id: string };
+        Returns: Record<string, unknown>;
       };
     };
     Enums: {

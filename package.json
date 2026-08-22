@@ -11,7 +11,8 @@
     "test": "vitest run",
     "supabase:verify": "node scripts/verify-supabase-setup.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
-    "admin:reset-password": "node scripts/reset-admin-password.mjs"
+    "admin:reset-password": "node scripts/reset-admin-password.mjs",
+    "catalogue:audit": "node scripts/audit-catalogue-quality.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

@@ -17,6 +17,12 @@ export type ImportSongInput = {
   composer: string;
   lyricist?: string | null;
   editorialNote?: string | null;
+  languageCode: string;
+  eraCode: string;
+  moodCodes?: string[];
+  occasionCodes?: string[];
+  songStory?: string | null;
+  context?: string | null;
 };
 
 export function nullableText(value: string | null | undefined) {
@@ -71,6 +77,10 @@ export async function createSongWithAssignment(supabase: SupabaseService, input:
     youtube_music_url: null,
     editorial_note: nullableText(input.editorialNote ?? input.metadata.description),
     editorial_note_telugu: null,
+    language_code: input.languageCode,
+    era_code: input.eraCode,
+    song_story: nullableText(input.songStory),
+    context: nullableText(input.context),
     thumbnail_url: nullableText(input.metadata.thumbnailUrl),
     embed_status: availabilityToEmbedStatus(input.metadata),
     active: true,
@@ -82,6 +92,20 @@ export async function createSongWithAssignment(supabase: SupabaseService, input:
   }
 
   const songId = songResult.data.id;
+  if (input.moodCodes?.length) {
+    const moodResult = await supabase.from("song_moods").insert(input.moodCodes.map((moodCode) => ({ song_id: songId, mood_code: moodCode })));
+    if (moodResult.error) {
+      await supabase.from("songs").delete().eq("id", songId);
+      throw new Error("Unable to save song moods.");
+    }
+  }
+  if (input.occasionCodes?.length) {
+    const occasionResult = await supabase.from("song_occasions").insert(input.occasionCodes.map((occasionCode) => ({ song_id: songId, occasion_code: occasionCode })));
+    if (occasionResult.error) {
+      await supabase.from("songs").delete().eq("id", songId);
+      throw new Error("Unable to save song occasions.");
+    }
+  }
   const assignmentResult = await supabase.from("channel_songs").insert({
     song_id: songId,
     channel_id: input.channelId,

@@ -2,7 +2,6 @@ import {
   assignSongAction,
   checkYouTubeAvailabilityAction,
   moveAssignmentAction,
-  removeAssignmentAction,
   reorderAssignmentAction,
   saveSongAction,
   setSongStatusAction,
@@ -13,7 +12,9 @@ import {
 import { ActionStateForm } from "@/components/admin/ActionStateForm";
 import { YouTubeImportForms } from "@/components/admin/YouTubeImportForms";
 import { YouTubeImportQueueReview } from "@/components/admin/YouTubeImportQueueReview";
-import { getAdminDashboardData } from "@/lib/admin/data";
+import { AssignmentSafetyActions, SongDeleteControl } from "@/components/admin/CatalogueSafetyActions";
+import { getAdminDashboardData, type AdminSong } from "@/lib/admin/data";
+import { eraOptions, languageOptions, moodOptions, occasionOptions } from "@/lib/catalogue/taxonomy";
 import { formatScheduleRange } from "@/lib/schedule";
 import type { EmbedStatus, TakedownStatus } from "@/types/database";
 
@@ -30,6 +31,66 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
 
 function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className="w-full rounded-md border border-white/15 bg-black/25 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white" />;
+}
+
+function TaxonomyControls({ song }: { song?: AdminSong }) {
+  const selectedMoods = new Set(song?.song_moods.map((item) => item.mood_code) ?? []);
+  const selectedOccasions = new Set(song?.song_occasions.map((item) => item.occasion_code) ?? []);
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-sm font-bold text-white/80">Language <span className="text-red-200">Required</span>
+          <Select name="languageCode" defaultValue={song?.language_code ?? "te"} required>{languageOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</Select>
+        </label>
+        <label className="text-sm font-bold text-white/80">Era <span className="text-red-200">Required</span>
+          <Select name="eraCode" defaultValue={song?.era_code ?? "2020s"} required>{eraOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</Select>
+        </label>
+      </div>
+      <fieldset>
+        <legend className="text-sm font-bold text-white/80">Moods <span className="font-normal text-white/45">Optional, select all that apply</span></legend>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {moodOptions.map((option) => <label key={option.code} className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="moodCodes" value={option.code} defaultChecked={selectedMoods.has(option.code)} className="accent-white" />{option.name}</label>)}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="text-sm font-bold text-white/80">Occasions and activities <span className="font-normal text-white/45">Optional</span></legend>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {occasionOptions.map((option) => <label key={option.code} className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="occasionCodes" value={option.code} defaultChecked={selectedOccasions.has(option.code)} className="accent-white" />{option.name}</label>)}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
+function SongEditForm({ song }: { song: AdminSong }) {
+  return (
+    <details className="mt-2 text-xs text-white/70">
+      <summary className="cursor-pointer font-bold focus:outline-none focus:ring-2 focus:ring-white">Edit metadata and taxonomy</summary>
+      <ActionStateForm action={saveSongAction} submitLabel="Save song">
+        <input type="hidden" name="songId" value={song.id} />
+        <input type="hidden" name="durationSeconds" value={song.duration_seconds ?? ""} />
+        <input type="hidden" name="youtubeInput" value={song.youtube_video_id} />
+        <input type="hidden" name="teluguTitle" value={song.telugu_title ?? ""} />
+        <input type="hidden" name="lyricist" value={song.lyricist ?? ""} />
+        <input type="hidden" name="spotifyUrl" value={song.spotify_url ?? ""} />
+        <input type="hidden" name="youtubeMusicUrl" value={song.youtube_music_url ?? ""} />
+        <input type="hidden" name="thumbnailUrl" value={song.thumbnail_url ?? ""} />
+        <input type="hidden" name="editorialNote" value={song.editorial_note ?? ""} />
+        <input type="hidden" name="editorialNoteTelugu" value={song.editorial_note_telugu ?? ""} />
+        <input type="hidden" name="embedStatus" value={song.embed_status} />
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label>Title<Input name="title" defaultValue={song.title} required /></label>
+          <label>Film<Input name="film" defaultValue={song.film} required /></label>
+          <label>Release year<Input name="releaseYear" type="number" min="1900" max="2100" defaultValue={song.release_year} required /></label>
+          <label>Singers<Input name="singers" defaultValue={song.singers.join(", ")} required /></label>
+          <label>Composer<Input name="composer" defaultValue={song.composer} required /></label>
+        </div>
+        <TaxonomyControls song={song} />
+        <label className="block">Song story<Textarea name="songStory" maxLength={320} rows={2} defaultValue={song.song_story ?? ""} /></label>
+        <label className="block">Context<Textarea name="context" maxLength={240} rows={2} defaultValue={song.context ?? ""} /></label>
+      </ActionStateForm>
+    </details>
+  );
 }
 
 export default async function AdminPage() {
@@ -98,20 +159,29 @@ export default async function AdminPage() {
                 <h3 className="font-bold">Add song</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm text-white/75">Title<Input name="title" required /></label>
-                  <label className="text-sm text-white/75">Telugu title<Input name="teluguTitle" /></label>
                   <label className="text-sm text-white/75">Film<Input name="film" required /></label>
                   <label className="text-sm text-white/75">Release year<Input name="releaseYear" type="number" min="1900" max="2100" required /></label>
                   <label className="text-sm text-white/75">Duration seconds<Input name="durationSeconds" type="number" min="1" required /></label>
                   <label className="text-sm text-white/75">Singers, comma-separated<Input name="singers" required /></label>
                   <label className="text-sm text-white/75">Composer<Input name="composer" required /></label>
-                  <label className="text-sm text-white/75">Lyricist<Input name="lyricist" /></label>
                   <label className="text-sm text-white/75">YouTube URL or ID<Input name="youtubeInput" required /></label>
-                  <label className="text-sm text-white/75">Spotify URL<Input name="spotifyUrl" type="url" /></label>
-                  <label className="text-sm text-white/75">YouTube Music URL<Input name="youtubeMusicUrl" type="url" /></label>
-                  <label className="text-sm text-white/75">Thumbnail URL<Input name="thumbnailUrl" type="url" /></label>
-                  <label className="text-sm text-white/75">Availability<Select name="embedStatus" defaultValue="unchecked">{embedStatuses.map((status) => <option key={status}>{status}</option>)}</Select></label>
                 </div>
-                <label className="block text-sm text-white/75">Editorial note<Textarea name="editorialNote" rows={2} /></label>
+                <TaxonomyControls />
+                <label className="block text-sm text-white/75">Song story <span className="text-white/45">Optional, 1-2 short lines</span><Textarea name="songStory" maxLength={320} rows={2} /></label>
+                <label className="block text-sm text-white/75">Context <span className="text-white/45">Optional listener-facing line</span><Textarea name="context" maxLength={240} rows={2} /></label>
+                <details className="rounded-md border border-white/10 p-3 text-sm text-white/70">
+                  <summary className="cursor-pointer font-bold focus:outline-none focus:ring-2 focus:ring-white">Advanced and internal fields</summary>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label>Telugu title<Input name="teluguTitle" /></label>
+                    <label>Lyricist<Input name="lyricist" /></label>
+                    <label>Spotify URL<Input name="spotifyUrl" type="url" /></label>
+                    <label>YouTube Music URL<Input name="youtubeMusicUrl" type="url" /></label>
+                    <label>Thumbnail URL<Input name="thumbnailUrl" type="url" /></label>
+                    <label>Availability<Select name="embedStatus" defaultValue="unchecked">{embedStatuses.map((status) => <option key={status}>{status}</option>)}</Select></label>
+                  </div>
+                  <label className="mt-3 block">Editorial note<Textarea name="editorialNote" rows={2} /></label>
+                  <input type="hidden" name="editorialNoteTelugu" value="" />
+                </details>
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-bold text-white/75">Assign to channels</legend>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -149,6 +219,7 @@ export default async function AdminPage() {
                       <p className="font-bold">{song.title}</p>
                       <p className="text-white/55">{song.film} · {song.release_year} · {song.duration_seconds ? `${song.duration_seconds}s` : "missing duration"} · {song.youtube_video_id}</p>
                       <a className="text-white underline underline-offset-4" href={song.youtube_url} target="_blank" rel="noreferrer">Open YouTube source</a>
+                      <SongEditForm song={song} />
                     </td>
                     <td className="p-3">
                       <form action={setSongStatusAction} className="space-y-2">
@@ -175,6 +246,14 @@ export default async function AdminPage() {
                         <input type="hidden" name="songId" value={song.id} />
                         <button className="rounded-md border border-white/20 px-2 py-1 text-xs font-bold">Check availability</button>
                       </form>
+                      <SongDeleteControl
+                        songId={song.id}
+                        title={song.title}
+                        channelNames={data.assignments
+                          .filter((assignment) => assignment.song_id === song.id && assignment.active)
+                          .map((assignment) => assignment.channels?.name)
+                          .filter((name): name is string => Boolean(name))}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -195,6 +274,7 @@ export default async function AdminPage() {
                 <input type="hidden" name="id" value={channel.id} />
                 <p className="font-bold">{channel.name}</p>
                 <p className="text-sm text-white/55">{channel.scheduled ? `Locked schedule: ${formatScheduleRange({ startHour: channel.start_hour, endHour: channel.end_hour })}` : "Optional on-demand channel"}</p>
+                <p className="text-xs text-white/45">Mode: {channel.channel_mode} · Language: {channel.primary_language_code}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm text-white/75">English name<Input name="name" defaultValue={channel.name} required /></label>
                   <label className="text-sm text-white/75">Telugu name<Input name="teluguName" defaultValue={channel.telugu_name} required /></label>
@@ -236,7 +316,7 @@ export default async function AdminPage() {
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="active" value="true" defaultChecked={assignment.active} /> Active</label>
                     <button className="rounded-md border border-white/20 px-2 py-1 text-xs font-bold">Save</button>
                   </form>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     <form action={moveAssignmentAction}>
                       <input type="hidden" name="channelId" value={assignment.channel_id} />
                       <input type="hidden" name="assignmentId" value={assignment.id} />
@@ -249,10 +329,12 @@ export default async function AdminPage() {
                       <input type="hidden" name="direction" value="down" />
                       <button className="rounded-md border border-white/20 px-2 py-1 text-xs font-bold" aria-label="Move song down">Down</button>
                     </form>
-                    <form action={removeAssignmentAction}>
-                      <input type="hidden" name="assignmentId" value={assignment.id} />
-                      <button className="rounded-md border border-white/20 px-2 py-1 text-xs font-bold" aria-label="Remove song from channel">Remove</button>
-                    </form>
+                    <AssignmentSafetyActions
+                      assignmentId={assignment.id}
+                      currentChannelId={assignment.channel_id}
+                      channels={data.channels.map((channel) => ({ id: channel.id, name: channel.name }))}
+                      sequence={assignment.sequence}
+                    />
                   </div>
                 </div>
               ))}

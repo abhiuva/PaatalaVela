@@ -5,6 +5,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { importYouTubePlaylistAction, previewYouTubeVideoImportAction, saveYouTubeVideoImportAction } from "@/app/admin/actions";
+import { eraOptions, languageOptions, moodOptions, occasionOptions } from "@/lib/catalogue/taxonomy";
 import type { DbChannel } from "@/types/database";
 
 type Result = Awaited<ReturnType<typeof previewYouTubeVideoImportAction>>;
@@ -107,7 +108,23 @@ export function YouTubeImportForms({ channels, youtubeApiConfigured }: { channel
             <label className="text-sm text-white/75">Lyricist<Input name="lyricist" defaultValue={suggested?.lyricist ?? ""} /></label>
             <label className="text-sm text-white/75">Channel<Select name="channelId" defaultValue={preview.suggestedChannelId} required>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</Select></label>
             <label className="text-sm text-white/75">Sequence<Input name="sequence" type="number" min="1" defaultValue={preview.suggestedSequence} required /></label>
+            <label className="text-sm text-white/75">Language<Select name="languageCode" defaultValue={channels.find((channel) => channel.id === preview.suggestedChannelId)?.primary_language_code ?? "te"} required>{languageOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</Select></label>
+            <label className="text-sm text-white/75">Era<Select name="eraCode" defaultValue="2020s" required>{eraOptions.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</Select></label>
           </div>
+          <fieldset>
+            <legend className="text-sm font-bold text-white/75">Mood tags <span className="font-normal text-white/45">Administrator confirmation required</span></legend>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {moodOptions.map((option) => <label key={option.code} className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="moodCodes" value={option.code} className="accent-white" />{option.name}</label>)}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className="text-sm font-bold text-white/75">Occasions and activities <span className="font-normal text-white/45">Optional</span></legend>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {occasionOptions.map((option) => <label key={option.code} className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="occasionCodes" value={option.code} className="accent-white" />{option.name}</label>)}
+            </div>
+          </fieldset>
+          <label className="block text-sm text-white/75">Song story <span className="text-white/45">Optional</span><Textarea name="songStory" maxLength={320} rows={2} /></label>
+          <label className="block text-sm text-white/75">Context <span className="text-white/45">Optional</span><Textarea name="context" maxLength={240} rows={2} /></label>
           <Textarea readOnly value={preview.description} rows={3} aria-label="YouTube description" />
           <SubmitButton label="Confirm import" pendingLabel="Importing" />
           <ActionMessage state={saveState} />

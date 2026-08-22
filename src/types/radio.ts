@@ -1,11 +1,5 @@
-export type ChannelSlug =
-  | "suprabhata-melodies"
-  | "tea-shop-classics"
-  | "ilaiyaraaja-era"
-  | "prema-viraham"
-  | "mass-beat-centre"
-  | "highway-ratri"
-  | "english-hits";
+export type ChannelSlug = string;
+export type ChannelMode = "scheduled" | "on_demand";
 
 export type TimeRange = {
   startHour: number;
@@ -19,6 +13,13 @@ export type Song = {
   year: number;
   singers: string[];
   composer: string;
+  thumbnailUrl: string | null;
+  story: string | null;
+  context: string | null;
+  languageCode: string;
+  eraCode: string;
+  moods: string[];
+  occasions: string[];
   youtubeVideoId: string;
   durationSeconds: number | null;
   sequence?: number;
@@ -30,11 +31,14 @@ export type Song = {
 export type Channel = {
   id: string | null;
   slug: ChannelSlug;
+  mode: ChannelMode;
   scheduled: boolean;
+  languageCode: string;
   name: string;
   teluguName: string;
   strapline: string;
   mood: string;
+  backgroundImageUrl: string | null;
   schedule: TimeRange;
   palette: {
     from: string;

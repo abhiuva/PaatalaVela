@@ -136,10 +136,13 @@ export function YouTubeImportQueueReview({ channels, queue }: { channels: DbChan
                     {item.duplicate_song_id ? <p className="text-amber-100">Duplicate</p> : null}
                   </td>
                   <td className="p-3 text-white/70">
-                    <p>Title: {String(suggested.title ?? item.source_title)}</p>
-                    <p>Film: {String(suggested.film ?? "Needs review") || "Needs review"}</p>
-                    <p>Singers: {String(suggested.singers ?? "Needs review") || "Needs review"}</p>
-                    <p>Composer: {String(suggested.composer ?? "Needs review") || "Needs review"}</p>
+                    <div className="space-y-2">
+                      <Input form={`import-${item.id}`} name="title" defaultValue={String(suggested.title ?? item.source_title)} required aria-label={`Confirmed title for ${item.source_title}`} />
+                      <Input form={`import-${item.id}`} name="film" defaultValue={String(suggested.film ?? "")} required placeholder="Film or album" aria-label={`Film for ${item.source_title}`} />
+                      <Input form={`import-${item.id}`} name="releaseYear" type="number" min="1900" max="2100" defaultValue={String(suggested.releaseYear ?? "")} required placeholder="Year" aria-label={`Release year for ${item.source_title}`} />
+                      <Input form={`import-${item.id}`} name="singers" defaultValue={String(suggested.singers ?? "")} required placeholder="Singers" aria-label={`Singers for ${item.source_title}`} />
+                      <Input form={`import-${item.id}`} name="composer" defaultValue={String(suggested.composer ?? "")} required placeholder="Composer" aria-label={`Composer for ${item.source_title}`} />
+                    </div>
                   </td>
                   <td className="p-3">
                     <form id={`import-${item.id}`} action={importQueuedYouTubeItemAction} className="space-y-2">
