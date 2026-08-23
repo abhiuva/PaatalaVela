@@ -17,3 +17,15 @@
 | Language analytics reconcile | Implemented | New events/dimensions, DB event constraint, and admin language/mode reports are live and tested. |
 | Feedback UUID handling | Complete | Valid, null, omitted, malformed, slug, unknown, insert, and general-feedback tests pass. |
 | Type-check, lint, tests, build | Pass | Type-check, lint, 163 tests, and the Next.js production build pass. |
+
+## User-approved Additions
+
+- [x] Shuffle works for scheduled and on-demand channels without changing database sequence.
+- [x] Every active channel is manually tested in normal and shuffle modes in installed Chromium; Firefox/WebKit executables were unavailable locally.
+- [x] Populated channel selection starts playback or shows a clear Tap to play fallback.
+- [x] Empty and exhausted channels show explicit states.
+- [x] Unavailable songs are skipped with a bounded retry count.
+- [x] Previous-channel songs cannot resume after a switch.
+- [x] Selected-channel catalogue refresh is isolated by internal channel UUID.
+- [x] Dynamic catalogue cache behavior is documented and users do not need to clear browser cache.
+- [x] Updated type-check, lint, tests, and production build pass.

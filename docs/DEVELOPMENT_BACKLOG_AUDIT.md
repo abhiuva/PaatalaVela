@@ -6,6 +6,8 @@ Source of truth: `/Users/abhishekkola/Downloads/Paatala_Vela_Development_Backlog
 
 The workbook contains six worksheets (`Improvement Backlog`, `Roadmap`, `KPIs`, `Development Items`, `Delivery Plan`, and `Analysis`) and 34 development items. Phase 1 contains DEV-001 through DEV-017 plus DEV-025. Phase 2 and Phase 3 items are intentionally outside this implementation run.
 
+On 2026-08-23 the user approved three additional Phase 1 P0 items, DEV-035 through DEV-037. These additions supersede the workbook where scope conflicts; the uploaded workbook remains unchanged.
+
 ## Phase 1 Audit
 
 | Dev ID | Phase | Priority | Current Status | Evidence | Gap | Dependency | Planned Change |
@@ -28,6 +30,9 @@ The workbook contains six worksheets (`Improvement Backlog`, `Roadmap`, `KPIs`, 
 | DEV-016 - Launch Hindi Hits channel | Phase 1 | P0 | Not started | No `hindi-hits` database channel or UI shell exists. | Channel seed/UUID, ordering, taxonomy enforcement, artwork fallback, empty state, and verified catalogue are missing. | DEV-005, DEV-015 | Seed Hindi Hits after English as on-demand with a real UUID and empty verified-song state; never create songs. |
 | DEV-017 - Instrument language-channel analytics | Phase 1 | P0 | Not started | Playback events carry channel UUIDs and device on session start. | Channel impression, language, channel mode, listening-duration dimensions, and language-level admin reporting are missing. | DEV-015 | Add language/mode dimensions and impression/selection/start/duration events, validate them server-side, and add language summaries. |
 | DEV-025 - Harden feedback submission and channel UUID handling | Phase 1 | P0 | Complete | Shared UUID validation, nullable general feedback, channel existence check, UUID-backed insert, clear stable errors, server-only service client, nullable FK, and valid/null/omitted/empty/slug/unknown tests are present. | No Phase 1 implementation gap found. | None | Preserve behavior, add RLS evidence to Phase 1 documentation, and include it in final regression checks. |
+| DEV-035 - Add persistent shuffle control inside every channel | Phase 1 | P0 | Complete | Non-mutating fair-cycle shuffle, history, catalogue reconciliation, versioned preference, accessible control, analytics, reload behavior, and empty/one/two/many tests are implemented. | No implementation gap found; future tuning of the recent window remains product-owned. | DEV-015 | Preserve deterministic database sequence and the documented listener-only queue contract. |
+| DEV-036 - Fix channels that do not start playback after selection | Phase 1 | P0 | Complete | Populated tile selection requests playback from the gesture, the singleton uses current callbacks, empty queues stop old media, confirmed PLAYING owns analytics/presence, autoplay fallback and bounded errors are explicit. | Audible browser behavior remains subject to YouTube embed availability and browser autoplay policy by design. | DEV-015 | Preserve the lifecycle tests and confirmed-playback contract. |
+| DEV-037 - Prevent stale channel catalogue and player-cache behaviour | Phase 1 | P0 | Complete | UUID/version-keyed no-store refresh, request abort/revision guard, isolated queue replacement, exact admin route revalidation, CDN headers, retry UI, and cache documentation are implemented. | No service worker exists; immutable static asset caching remains intentionally unchanged. | DEV-036 | Preserve targeted invalidation and avoid global cache disabling. |
 
 ## Live Catalogue Baseline
 
