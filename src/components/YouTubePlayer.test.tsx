@@ -41,6 +41,19 @@ describe("YouTubePlayer lifecycle", () => {
     await waitFor(() => expect(player.stopVideo).toHaveBeenCalled());
   });
 
+  it("omits the videoId constructor option while the catalogue is loading", async () => {
+    let options!: ConstructorParameters<YTConstructor>[1];
+    const Player = function (_elementId: string, nextOptions: ConstructorParameters<YTConstructor>[1]) {
+      options = nextOptions;
+      return { loadVideoById: vi.fn(), cueVideoById: vi.fn(), playVideo: vi.fn(), pauseVideo: vi.fn(), stopVideo: vi.fn(), seekTo: vi.fn(), getCurrentTime: vi.fn(() => 0), setVolume: vi.fn(), destroy: vi.fn() } as YTPlayer;
+    } as unknown as YTConstructor;
+    window.YT = { Player, PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2 } };
+    const common = { videoId: null, isPlaying: false, hasUserInteracted: false, volume: 70, seekSeconds: 0, seekRevision: 0, onReady: vi.fn(), onPlaybackStarted: vi.fn(), onAutoplayBlocked: vi.fn(), onEnded: vi.fn(), onError: vi.fn(), onPositionChange: vi.fn() };
+    render(<YouTubePlayer {...common} />);
+    await waitFor(() => expect(options).toBeDefined());
+    expect(Object.hasOwn(options, "videoId")).toBe(false);
+  });
+
   it("reports a blocked play request when PLAYING is not confirmed", async () => {
     vi.useFakeTimers();
     let options!: ConstructorParameters<YTConstructor>[1];

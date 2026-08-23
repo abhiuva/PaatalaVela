@@ -69,8 +69,9 @@ export function YouTubePlayer(props: YouTubePlayerProps) {
     let cancelled = false;
     loadYouTubeApi().then(() => {
       if (cancelled || playerRef.current || !window.YT?.Player) return;
+      const initialVideoId = latestRef.current.videoId;
       playerRef.current = new window.YT.Player(PLAYER_ELEMENT_ID, {
-        videoId: latestRef.current.videoId ?? undefined,
+        ...(initialVideoId ? { videoId: initialVideoId } : {}),
         playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1, origin: window.location.origin },
         events: {
           onReady: (event) => {
