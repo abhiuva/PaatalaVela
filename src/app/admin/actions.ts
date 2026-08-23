@@ -93,6 +93,14 @@ function safeActionError(message: string, code: string, field?: string, values?:
   return { ok: false, message: `${message} Code: ${code}.`, code, field, values };
 }
 
+function revalidatePublicCatalogue(channelIds: readonly string[] = []) {
+  revalidatePath("/");
+  revalidatePath("/api/catalogue");
+  for (const channelId of new Set(channelIds.filter(isUuid))) {
+    revalidatePath(`/api/catalogue/channels/${channelId}`);
+  }
+}
+
 export async function logoutAction() {
   const supabase = await createSupabaseAuthServerClient();
   await supabase?.auth.signOut();
@@ -229,7 +237,7 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
   }
 
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue(channelIds);
   return { ok: true, message: songId ? "Song updated." : "Song added." };
 }
 
@@ -331,7 +339,7 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
       context: sanitizeEditorialText(taxonomy.data.context, 240),
     });
     revalidatePath("/admin");
-    revalidatePath("/");
+    revalidatePublicCatalogue([channelId]);
     return {
       ok: result.status === "imported",
       code: result.status === "duplicate" ? "ADMIN_YOUTUBE_DUPLICATE" : "ADMIN_YOUTUBE_IMPORTED",
@@ -466,7 +474,7 @@ export async function importQueuedYouTubeItemAction(formData: FormData) {
     composer: String(formData.get("composer") ?? ""),
   });
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue([channelId]);
 }
 
 export async function rejectQueuedYouTubeItemAction(formData: FormData) {
@@ -494,7 +502,7 @@ export async function bulkImportQueuedYouTubeItemsAction(_previousState: ActionR
     }
   }
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue(channelId ? [channelId] : []);
   return { ok: true, code: "ADMIN_BULK_IMPORT_COMPLETE", message: `Bulk import complete. ${results.length} item(s) processed.`, results };
 }
 
@@ -550,7 +558,7 @@ export async function assignSongAction(formData: FormData) {
   if (!isUuid(songId) || !isUuid(channelId) || !Number.isInteger(sequence) || sequence < 1) return;
   await supabase.from("channel_songs").upsert({ song_id: songId, channel_id: channelId, sequence, active: true }, { onConflict: "channel_id,song_id" });
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue([channelId]);
 }
 
 export async function reorderAssignmentAction(formData: FormData) {
@@ -590,7 +598,7 @@ export async function moveAssignmentAction(formData: FormData) {
   reordered.splice(nextIndex, 0, item);
   await supabase.rpc("reorder_channel_assignments", { p_channel_id: channelId, p_assignment_ids: reordered });
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue([channelId]);
 }
 
 export async function removeAssignmentAction(formData: FormData) {
@@ -620,7 +628,7 @@ export async function moveSongAssignmentAction(formData: FormData) {
     p_actor_id: context.userId,
   });
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue([targetChannelId]);
 }
 
 export async function deleteSongAction(formData: FormData) {
@@ -635,7 +643,7 @@ export async function deleteSongAction(formData: FormData) {
     p_confirmation: confirmation,
   });
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue();
 }
 
 export async function updateChannelAction(_previousState: ActionResult | null, formData: FormData): Promise<ActionResult> {
@@ -675,7 +683,7 @@ export async function updateChannelAction(_previousState: ActionResult | null, f
     .eq("id", parsed.data.id);
 
   revalidatePath("/admin");
-  revalidatePath("/");
+  revalidatePublicCatalogue([parsed.data.id]);
   return error ? { ok: false, message: "Unable to update channel." } : { ok: true, message: "Channel updated." };
 }
 

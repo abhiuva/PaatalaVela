@@ -92,6 +92,10 @@ function toChannel(row: ChannelWithSongs): Channel | null {
   };
 }
 
+export function buildSupabaseChannel(row: ChannelWithSongs) {
+  return toChannel(row);
+}
+
 function validateChannelShell(channels: Channel[]) {
   if (channels.length < localChannels.length) {
     return false;

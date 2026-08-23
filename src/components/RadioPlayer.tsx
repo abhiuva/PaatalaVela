@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Pause, Play, Share2, SkipBack, SkipForward, Volume2 } from "lucide-react";
+import { ExternalLink, Pause, Play, RefreshCw, Share2, Shuffle, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { ChannelSelector } from "@/components/ChannelSelector";
 import { Footer } from "@/components/Footer";
 import { MoodBackground } from "@/components/MoodBackground";
@@ -30,13 +30,23 @@ export function RadioPlayer() {
   const shareText = encodeURIComponent(
     `Listening to ${radio.channel.name} on Telugu Radio${radio.song ? `: ${radio.song.title} (${radio.song.film}) ${youtubeUrl}` : "."}`,
   );
-  useListenerPresence({ isPlaying: radio.isPlaying, hasUserInteracted: radio.hasUserInteracted, channelSlug: radio.channel.slug, songId: radio.song?.id });
+  useListenerPresence({ isPlaying: radio.playbackConfirmed, hasUserInteracted: radio.hasUserInteracted, channelSlug: radio.channel.slug, songId: radio.song?.id });
 
   useEffect(() => {
     if (!window.sessionStorage.getItem("telugu-radio-session")) {
       window.sessionStorage.setItem("telugu-radio-session", getOrCreateSessionId());
     }
   }, []);
+
+  const selectChannel = (channelSlug: string) => {
+    const channel = catalogue.channels.find((item) => item.slug === channelSlug);
+    radio.selectChannel(channelSlug);
+    if (channel?.id) void catalogue.refreshChannel(channel.id);
+  };
+
+  const selectedChannelLoading = catalogue.channelLoadState.channelId === radio.channel.id
+    ? catalogue.channelLoadState.status
+    : "idle";
 
   return (
     <>
@@ -51,8 +61,17 @@ export function RadioPlayer() {
             <p className="mt-3 max-w-2xl text-base leading-7 text-white/78">{radio.channel.strapline}</p>
             {catalogue.isLoading ? (
               <p className="mt-3 inline-flex rounded-full border border-white/18 bg-black/22 px-3 py-1 text-xs font-semibold text-white/72">
-                Loading production catalogue
+                Loading songs
               </p>
+            ) : selectedChannelLoading === "loading" ? (
+              <p className="mt-3 inline-flex rounded-full border border-white/18 bg-black/22 px-3 py-1 text-xs font-semibold text-white/72">Loading songs</p>
+            ) : selectedChannelLoading === "error" ? (
+              <div className="mt-3 flex max-w-2xl items-center gap-3 rounded-md border border-red-200/30 bg-red-300/12 px-3 py-2 text-sm font-medium text-red-50">
+                <span>Unable to load channel.</span>
+                <button type="button" onClick={() => radio.channel.id && void catalogue.refreshChannel(radio.channel.id)} className="inline-flex items-center gap-1 rounded-sm px-2 py-1 font-bold focus:outline-none focus:ring-2 focus:ring-white">
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" /> Retry
+                </button>
+              </div>
             ) : catalogue.source === "local" ? (
               <p className="mt-3 max-w-2xl rounded-md border border-amber-200/30 bg-amber-300/12 px-3 py-2 text-sm font-medium text-amber-50">
                 {catalogue.fallbackReason} {catalogue.diagnosticCode ? `(${catalogue.diagnosticCode})` : ""}
@@ -92,7 +111,7 @@ export function RadioPlayer() {
             )}
 
             <section className="rounded-lg border border-white/15 bg-black/30 p-4 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-5" aria-label="Playback controls">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={radio.previousTrack}
@@ -105,14 +124,26 @@ export function RadioPlayer() {
                 </button>
                 <button
                   type="button"
+                  onClick={radio.toggleShuffle}
+                  disabled={!canPlayCurrentSong || !radio.shuffleAvailable}
+                  aria-label={radio.shuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
+                  aria-pressed={radio.shuffleEnabled}
+                  title={radio.shuffleAvailable ? "Shuffle this channel" : "Shuffle requires at least two songs"}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 px-3 font-bold text-white transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Shuffle className="h-5 w-5" aria-hidden="true" />
+                  <span className="sr-only sm:not-sr-only">Shuffle</span>
+                </button>
+                <button
+                  type="button"
                   onClick={radio.togglePlayback}
                   disabled={!canPlayCurrentSong}
                   className="flex min-h-12 items-center justify-center gap-2 rounded-md px-3 font-black text-black transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-white"
                   style={{ backgroundColor: radio.channel.palette.accent }}
                   aria-label={radio.isPlaying ? "Pause radio" : "Start radio"}
                 >
-                  {radio.isPlaying ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" aria-hidden="true" />}
-                  <span>{radio.isPlaying ? "Pause" : "Start"}</span>
+                  {radio.isPlaying && !radio.playbackConfirmed ? <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" /> : radio.isPlaying ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" aria-hidden="true" />}
+                  <span className="hidden sm:inline">{radio.isPlaying && !radio.playbackConfirmed ? "Starting playback" : radio.isPlaying ? "Pause" : radio.autoplayBlocked ? "Tap to play" : "Start"}</span>
                 </button>
                 <button
                   type="button"
@@ -125,6 +156,11 @@ export function RadioPlayer() {
                   <SkipForward className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
+
+              {radio.playbackNotice ? <p className="mt-3 text-sm font-semibold text-amber-100" role="status">{radio.playbackNotice}</p> : null}
+              {radio.isPlaying && !radio.playbackConfirmed && !radio.playbackNotice ? <p className="mt-3 text-sm font-semibold text-white/78" role="status">Starting playback</p> : null}
+              {radio.autoplayBlocked ? <p className="mt-3 text-sm font-semibold text-white/78" role="status">Tap to play</p> : null}
+              {radio.playbackStatus === "exhausted" ? <p className="mt-3 text-sm font-semibold text-amber-100" role="status">No verified songs available.</p> : null}
 
               <label className="mt-5 flex items-center gap-3 text-sm font-semibold text-white/82">
                 <Volume2 className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -197,24 +233,20 @@ export function RadioPlayer() {
               </div>
             </section>
 
-            {canPlayCurrentSong && radio.song ? (
-              <YouTubePlayer
-                videoId={radio.song.youtubeVideoId}
+            <YouTubePlayer
+                videoId={canPlayCurrentSong && radio.song ? radio.song.youtubeVideoId : null}
                 isPlaying={radio.isPlaying}
                 hasUserInteracted={radio.hasUserInteracted}
                 volume={radio.volume}
                 seekSeconds={radio.seekSeconds}
                 seekRevision={radio.seekRevision}
                 onReady={radio.handlePlayerReady}
+                onPlaybackStarted={radio.handlePlaybackStarted}
+                onAutoplayBlocked={radio.handleAutoplayBlocked}
                 onEnded={radio.handleEnded}
                 onError={radio.handlePlayerError}
                 onPositionChange={radio.handlePositionChange}
               />
-            ) : (
-              <section className="rounded-lg border border-white/15 bg-black/30 p-4 text-sm text-white/70 backdrop-blur-md" aria-label="Player unavailable">
-                The YouTube player will appear after this Supabase channel has an active, available song assignment.
-              </section>
-            )}
             <SponsorPlacement campaigns={sponsors} channelId={radio.channel.id ?? ""} placementType="now_playing" />
           </section>
 
@@ -244,7 +276,7 @@ export function RadioPlayer() {
               activeChannelSlug={radio.channel.slug}
               scheduledChannelSlug={radio.scheduledChannel.slug}
               manualChannelSlug={radio.manualChannelSlug}
-              onSelect={radio.selectChannel}
+              onSelect={selectChannel}
               onResumeSchedule={radio.resumeSchedule}
             />
 

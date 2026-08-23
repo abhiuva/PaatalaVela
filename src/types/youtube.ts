@@ -13,6 +13,7 @@ export type YTPlayer = {
   cueVideoById: (videoId: string) => void;
   playVideo: () => void;
   pauseVideo: () => void;
+  stopVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
   setVolume: (volume: number) => void;
@@ -22,7 +23,7 @@ export type YTPlayer = {
 export type YTConstructor = new (
   elementId: string,
   options: {
-    videoId: string;
+    videoId?: string;
     playerVars: Record<string, number | string>;
     events: {
       onReady: (event: { target: YTPlayer }) => void;

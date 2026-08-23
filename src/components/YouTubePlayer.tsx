@@ -1,35 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { YTPlayer, YouTubePlayerStateChangeEvent } from "@/types/youtube";
 
 type YouTubePlayerProps = {
-  videoId: string;
+  videoId: string | null;
   isPlaying: boolean;
   hasUserInteracted: boolean;
   volume: number;
   seekSeconds: number;
   seekRevision: number;
   onReady: () => void;
+  onPlaybackStarted: (videoId: string) => void;
+  onAutoplayBlocked: () => void;
   onEnded: () => void;
-  onError: () => void;
+  onError: (code: number) => void;
   onPositionChange: (positionSeconds: number) => void;
 };
 
 const PLAYER_ELEMENT_ID = "telugu-radio-youtube-player";
+const PLAY_CONFIRMATION_MS = 3000;
 
 function loadYouTubeApi() {
-  if (window.YT?.Player) {
-    return Promise.resolve();
-  }
-
+  if (window.YT?.Player) return Promise.resolve();
   return new Promise<void>((resolve) => {
     const previous = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       previous?.();
       resolve();
     };
-
     if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
       const script = document.createElement("script");
       script.src = "https://www.youtube.com/iframe_api";
@@ -39,123 +38,128 @@ function loadYouTubeApi() {
   });
 }
 
-export function YouTubePlayer({
-  videoId,
-  isPlaying,
-  hasUserInteracted,
-  volume,
-  seekSeconds,
-  seekRevision,
-  onReady,
-  onEnded,
-  onError,
-  onPositionChange,
-}: YouTubePlayerProps) {
+export function YouTubePlayer(props: YouTubePlayerProps) {
   const playerRef = useRef<YTPlayer | null>(null);
-  const latestVideoId = useRef(videoId);
+  const latestRef = useRef(props);
   const loadedKeyRef = useRef<string | null>(null);
+  const confirmationTimerRef = useRef<number | null>(null);
+  const loadStartedPlaybackRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    latestVideoId.current = videoId;
-  }, [videoId]);
+    latestRef.current = props;
+  }, [props]);
+
+  const clearConfirmationTimer = useCallback(() => {
+    if (confirmationTimerRef.current !== null) {
+      window.clearTimeout(confirmationTimerRef.current);
+      confirmationTimerRef.current = null;
+    }
+  }, []);
+
+  const expectPlayback = useCallback(() => {
+    clearConfirmationTimer();
+    confirmationTimerRef.current = window.setTimeout(() => {
+      confirmationTimerRef.current = null;
+      latestRef.current.onAutoplayBlocked();
+    }, PLAY_CONFIRMATION_MS);
+  }, [clearConfirmationTimer]);
 
   useEffect(() => {
     let cancelled = false;
-
     loadYouTubeApi().then(() => {
-      if (cancelled || playerRef.current || !window.YT?.Player) {
-        return;
-      }
-
+      if (cancelled || playerRef.current || !window.YT?.Player) return;
       playerRef.current = new window.YT.Player(PLAYER_ELEMENT_ID, {
-        videoId: latestVideoId.current,
-        playerVars: {
-          controls: 1,
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          origin: window.location.origin,
-        },
+        videoId: latestRef.current.videoId ?? undefined,
+        playerVars: { controls: 1, modestbranding: 1, rel: 0, playsinline: 1, origin: window.location.origin },
         events: {
           onReady: (event) => {
-            event.target.setVolume(volume);
-            event.target.cueVideoById(latestVideoId.current);
-            event.target.seekTo(seekSeconds, true);
+            const latest = latestRef.current;
+            event.target.setVolume(latest.volume);
+            if (latest.videoId) {
+              event.target.cueVideoById(latest.videoId);
+              event.target.seekTo(latest.seekSeconds, true);
+            }
             setIsReady(true);
-            onReady();
+            latest.onReady();
           },
           onStateChange: (event: YouTubePlayerStateChangeEvent) => {
-            if (event.data === window.YT?.PlayerState.ENDED) {
-              onEnded();
+            const playerState = window.YT?.PlayerState;
+            if (event.data === playerState?.PLAYING) {
+              clearConfirmationTimer();
+              const currentVideoId = latestRef.current.videoId;
+              if (currentVideoId) latestRef.current.onPlaybackStarted(currentVideoId);
+            } else if (event.data === playerState?.ENDED) {
+              clearConfirmationTimer();
+              latestRef.current.onEnded();
             }
           },
-          onError: () => {
-            onError();
+          onError: (event) => {
+            clearConfirmationTimer();
+            latestRef.current.onError(event.data);
           },
         },
       });
     });
-
     return () => {
       cancelled = true;
+      clearConfirmationTimer();
+      playerRef.current?.destroy();
+      playerRef.current = null;
     };
-  }, [onEnded, onError, onReady, seekSeconds, volume]);
+  }, [clearConfirmationTimer]);
 
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || !isReady) {
+    if (!player || !isReady) return;
+    if (!props.videoId) {
+      clearConfirmationTimer();
+      loadedKeyRef.current = null;
+      player.stopVideo();
       return;
     }
-
-    const loadKey = `${videoId}:${seekRevision}`;
-    if (loadedKeyRef.current === loadKey) {
-      return;
-    }
-
+    const loadKey = `${props.videoId}:${props.seekRevision}`;
+    if (loadedKeyRef.current === loadKey) return;
     loadedKeyRef.current = loadKey;
-
-    if (hasUserInteracted && isPlaying) {
-      player.loadVideoById(videoId);
-      player.seekTo(seekSeconds, true);
-      player.playVideo();
+    if (props.hasUserInteracted && props.isPlaying) {
+      loadStartedPlaybackRef.current = true;
+      player.loadVideoById(props.videoId);
+      player.seekTo(props.seekSeconds, true);
+      expectPlayback();
     } else {
-      player.cueVideoById(videoId);
-      player.seekTo(seekSeconds, true);
+      player.cueVideoById(props.videoId);
+      player.seekTo(props.seekSeconds, true);
     }
-  }, [hasUserInteracted, isPlaying, isReady, seekRevision, seekSeconds, videoId]);
+  }, [clearConfirmationTimer, expectPlayback, isReady, props.hasUserInteracted, props.isPlaying, props.seekRevision, props.seekSeconds, props.videoId]);
 
   useEffect(() => {
-    playerRef.current?.setVolume(volume);
-  }, [volume]);
+    playerRef.current?.setVolume(props.volume);
+  }, [props.volume]);
 
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || !isReady || !hasUserInteracted) {
-      return;
-    }
-
-    if (isPlaying) {
+    if (!player || !isReady || !props.hasUserInteracted || !props.videoId) return;
+    if (props.isPlaying) {
+      if (loadStartedPlaybackRef.current) {
+        loadStartedPlaybackRef.current = false;
+        return;
+      }
       player.playVideo();
+      expectPlayback();
     } else {
+      clearConfirmationTimer();
       player.pauseVideo();
     }
-  }, [hasUserInteracted, isPlaying, isReady]);
+  }, [clearConfirmationTimer, expectPlayback, isReady, props.hasUserInteracted, props.isPlaying, props.videoId]);
 
   useEffect(() => {
-    if (!isReady || !isPlaying) {
-      return;
-    }
-
+    if (!isReady || !props.isPlaying) return;
     const interval = window.setInterval(() => {
       const player = playerRef.current;
-      if (player) {
-        onPositionChange(player.getCurrentTime());
-      }
+      if (player) latestRef.current.onPositionChange(player.getCurrentTime());
     }, 5000);
-
     return () => window.clearInterval(interval);
-  }, [isPlaying, isReady, onPositionChange]);
+  }, [isReady, props.isPlaying]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/20 bg-black shadow-2xl shadow-black/30">

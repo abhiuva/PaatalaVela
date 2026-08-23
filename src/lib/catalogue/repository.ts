@@ -3,12 +3,47 @@ import "server-only";
 import { getChannelBySlug, getChannelForHour } from "@/lib/schedule";
 import { createPublicSupabaseServerClient, createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getLocalCatalogue } from "@/lib/catalogue/local";
-import { buildSupabaseCatalogue, type ChannelWithSongs } from "@/lib/catalogue/remote";
+import { buildSupabaseCatalogue, buildSupabaseChannel, type ChannelWithSongs } from "@/lib/catalogue/remote";
 import { isLockedChannelSlug } from "@/lib/catalogue/validation";
+import { isUuid } from "@/lib/validation/uuid";
 import type { PublicCatalogue } from "@/lib/catalogue/types";
 import type { EmbedStatus } from "@/types/database";
 
 export class CatalogueRepository {
+  async getChannelById(channelId: string) {
+    if (!isUuid(channelId)) {
+      return { channel: null, error: "invalid_id" as const };
+    }
+
+    const supabase = createPublicSupabaseServerClient();
+    if (!supabase) {
+      return { channel: null, error: "configuration" as const };
+    }
+
+    const { data, error } = await supabase
+      .from("channels")
+      .select("*, channel_songs(*, songs(*, song_moods(mood_code), song_occasions(occasion_code)))")
+      .eq("id", channelId)
+      .eq("active", true)
+      .eq("channel_songs.active", true)
+      .order("sequence", { referencedTable: "channel_songs", ascending: true })
+      .order("created_at", { referencedTable: "channel_songs", ascending: true })
+      .maybeSingle();
+
+    if (error) {
+      return { channel: null, error: "query" as const };
+    }
+
+    if (!data) {
+      return { channel: null, error: "not_found" as const };
+    }
+
+    const channel = buildSupabaseChannel(data as ChannelWithSongs);
+    return channel
+      ? { channel, error: null }
+      : { channel: null, error: "invalid_channel" as const };
+  }
+
   async getActiveChannels(): Promise<PublicCatalogue> {
     const supabase = createPublicSupabaseServerClient();
 

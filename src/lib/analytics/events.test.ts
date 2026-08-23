@@ -58,6 +58,16 @@ describe("analytics validation", () => {
       channel_mode: "on_demand",
     }).ok).toBe(true);
   });
+
+  it("accepts non-sensitive shuffle mode transitions", () => {
+    expect(validateAnalyticsEvent("shuffle_mode_changed", {
+      session_id: "session_1",
+      channel_id: "6f3fc628-a517-4dc5-a479-334d6bce7558",
+      channel_slug: "english-hits",
+      previous_mode: "normal",
+      new_mode: "shuffle",
+    }).ok).toBe(true);
+  });
 });
 
 describe("analytics consent", () => {

@@ -26,6 +26,7 @@ export const analyticsEventNames = [
   "channel_impression",
   "channel_selected",
   "listening_duration_recorded",
+  "shuffle_mode_changed",
 ] as const satisfies readonly AnalyticsEventName[];
 
 const safeId = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/);
@@ -103,6 +104,12 @@ export const eventSchemas = {
     channel_id: safeId,
     song_id: safeId.optional(),
     listening_seconds: z.coerce.number().int().min(0).max(24 * 60 * 60),
+  }),
+  shuffle_mode_changed: base.extend({
+    channel_id: safeId,
+    channel_slug: safeId,
+    previous_mode: z.enum(["normal", "shuffle"]),
+    new_mode: z.enum(["normal", "shuffle"]),
   }),
 } satisfies Record<AnalyticsEventName, z.ZodType>;
 

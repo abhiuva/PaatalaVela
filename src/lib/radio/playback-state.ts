@@ -16,6 +16,7 @@ export type PlaybackEvent =
   | { type: "NEXT"; songId: string }
   | { type: "PREVIOUS"; songId: string }
   | { type: "CHANNEL_CHANGED"; songId: string | null }
+  | { type: "QUEUE_EMPTY" }
   | { type: "SCHEDULE_BOUNDARY" }
   | { type: "PLAYER_ERROR"; songId: string; exhausted: boolean }
   | { type: "RETURN_TO_LIVE"; songId: string | null }
@@ -49,6 +50,8 @@ export function playbackReducer(state: PlaybackState, event: PlaybackEvent): Pla
     case "CHANNEL_CHANGED":
     case "RETURN_TO_LIVE":
       return { ...state, status: "loading", currentSongId: event.songId, lastEndedSongId: null, failedSongIds: [] };
+    case "QUEUE_EMPTY":
+      return { ...state, status: "exhausted", currentSongId: null, lastEndedSongId: null, failedSongIds: [] };
     case "SCHEDULE_BOUNDARY":
       return { ...state, status: state.status === "playing" ? "playing" : "transitioning" };
     case "PLAYER_ERROR": {

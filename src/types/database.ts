@@ -25,7 +25,8 @@ export type AnalyticsEventName =
   | "takedown_form_opened"
   | "channel_impression"
   | "channel_selected"
-  | "listening_duration_recorded";
+  | "listening_duration_recorded"
+  | "shuffle_mode_changed";
 export type SponsorPlacementType = "homepage" | "channel" | "now_playing" | "schedule" | "footer";
 export type SponsorCampaignStatus = "draft" | "scheduled" | "active" | "paused" | "completed";
 export type SongRequestStatus = "new" | "reviewing" | "accepted" | "rejected" | "duplicate";
