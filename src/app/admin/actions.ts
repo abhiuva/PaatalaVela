@@ -6,7 +6,7 @@ import { createSupabaseAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getAdminContext } from "@/lib/admin/auth";
 import { channelInputSchema, extractYouTubeVideoId, songInputSchema, taxonomyInputSchema, youtubeVideoIdSchema } from "@/lib/catalogue/validation";
-import { createSongWithAssignment, findDuplicateSongId, nextSequenceForChannel, suggestedMetadataFromQueue } from "@/lib/youtube/import-service";
+import { createSongWithAssignment, findDuplicateSongId, ImportStageError, nextSequenceForChannel, suggestedMetadataFromQueue } from "@/lib/youtube/import-service";
 import { assertSupportedVideoInput, parseYouTubePlaylistInput, queueStatusForMetadata, type YouTubeVideoMetadata } from "@/lib/youtube/import";
 import { fetchOneYouTubeVideoMetadata, fetchYouTubePlaylistVideoIds, fetchYouTubeVideoMetadata } from "@/lib/youtube/server";
 import { eraForYear, sanitizeEditorialText } from "@/lib/catalogue/taxonomy";
@@ -99,6 +99,14 @@ function revalidatePublicCatalogue(channelIds: readonly string[] = []) {
   for (const channelId of new Set(channelIds.filter(isUuid))) {
     revalidatePath(`/api/catalogue/channels/${channelId}`);
   }
+}
+
+function importFailure(error: unknown, values: Record<string, string>): ActionResult {
+  if (error instanceof ImportStageError) {
+    console.warn("[admin.youtube-import]", { code: error.safeCode, stage: error.stage });
+    return safeActionError(`${error.message} Failed stage: ${error.stage}.`, error.safeCode, error.stage, values);
+  }
+  return safeActionError("The import transaction failed and no partial record was kept.", "ADMIN_IMPORT_TRANSACTION_FAILED", "transaction", values);
 }
 
 export async function logoutAction() {
@@ -223,17 +231,18 @@ export async function saveSongAction(_previousState: ActionResult | null, formDa
     return safeActionError(error instanceof Error ? error.message : "Unable to save song taxonomy.", "ADMIN_SONG_TAXONOMY_FAILED", "moodCodes", values);
   }
   if (channelIds.length > 0) {
-    const existing = await supabase.from("channel_songs").select("channel_id").eq("song_id", savedSongId);
-    const existingChannelIds = new Set((existing.data ?? []).map((row) => row.channel_id));
-    const inserts = channelIds
-      .filter((channelId) => !existingChannelIds.has(channelId))
-      .map((channelId) => ({ channel_id: channelId, song_id: savedSongId, sequence: 999, active: true }));
-
-    if (inserts.length > 0) {
-      await supabase.from("channel_songs").insert(inserts);
+    for (const channelId of channelIds) {
+      const assignment = await supabase.rpc("assign_song_to_channel_atomic", {
+        p_channel_id: channelId,
+        p_song_id: savedSongId,
+        p_requested_sequence: null,
+        p_actor_id: null,
+      });
+      if (assignment.error) {
+        if (!songId) await supabase.from("songs").delete().eq("id", savedSongId);
+        return safeActionError("Song validation passed, but channel assignment failed. No new partial song was kept.", assignment.error.code === "42501" ? "ADMIN_ASSIGNMENT_PERMISSION_DENIED" : "ADMIN_ASSIGNMENT_FAILED", "channelIds", values);
+      }
     }
-
-    await supabase.from("channel_songs").update({ active: true }).eq("song_id", savedSongId).in("channel_id", channelIds);
   }
 
   revalidatePath("/admin");
@@ -280,8 +289,8 @@ export async function previewYouTubeVideoImportAction(_previousState: ActionResu
 }
 
 export async function saveYouTubeVideoImportAction(_previousState: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) return { ok: false, message: "Unauthorized.", code: "ADMIN_UNAUTHORIZED" };
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") return { ok: false, message: "Unauthorized.", code: "ADMIN_UNAUTHORIZED" };
 
   const youtubeVideoId = String(formData.get("youtubeVideoId") ?? "");
   const channelId = String(formData.get("channelId") ?? "");
@@ -290,9 +299,16 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
 
   if (!youtubeVideoIdSchema.safeParse(youtubeVideoId).success) return safeActionError("YouTube video ID is invalid.", "ADMIN_YOUTUBE_ID_INVALID", "youtubeVideoId", values);
   if (!channelId) return safeActionError("Choose one website mood channel before importing.", "ADMIN_IMPORT_CHANNEL_REQUIRED", "channelId", values);
+  if (!isUuid(channelId)) return safeActionError("Choose a valid internal catalogue channel.", "ADMIN_IMPORT_CHANNEL_UUID_INVALID", "channelId", values);
   if (!Number.isInteger(sequence) || sequence < 1) return safeActionError("Sequence must be a positive whole number.", "ADMIN_IMPORT_SEQUENCE_INVALID", "sequence", values);
 
-  const metadata = await fetchOneYouTubeVideoMetadata(youtubeVideoId);
+  let metadata: YouTubeVideoMetadata;
+  try {
+    metadata = await fetchOneYouTubeVideoMetadata(youtubeVideoId);
+  } catch {
+    console.warn("[admin.youtube-import]", { code: "ADMIN_IMPORT_METADATA_LOOKUP_FAILED", stage: "metadata_lookup" });
+    return safeActionError("YouTube metadata lookup failed. Fetch details again, then retry the import.", "ADMIN_IMPORT_METADATA_LOOKUP_FAILED", "youtubeVideoId", values);
+  }
   if (metadata.availability !== "available" || !metadata.embeddable) {
     return safeActionError("This video is unavailable or non-embeddable. Confirm another source before importing.", "ADMIN_IMPORT_AVAILABILITY_REQUIRED", "availability", values);
   }
@@ -337,17 +353,18 @@ export async function saveYouTubeVideoImportAction(_previousState: ActionResult 
       occasionCodes: taxonomy.data.occasionCodes,
       songStory: sanitizeEditorialText(taxonomy.data.songStory, 320),
       context: sanitizeEditorialText(taxonomy.data.context, 240),
+      actorId: context.userId,
     });
     revalidatePath("/admin");
     revalidatePublicCatalogue([channelId]);
     return {
-      ok: result.status === "imported",
-      code: result.status === "duplicate" ? "ADMIN_YOUTUBE_DUPLICATE" : "ADMIN_YOUTUBE_IMPORTED",
-      message: result.status === "duplicate" ? "That YouTube video already exists. Code: ADMIN_YOUTUBE_DUPLICATE." : "Imported one YouTube song and assigned it to the selected channel.",
+      ok: true,
+      code: result.status === "imported" ? "ADMIN_YOUTUBE_IMPORTED" : result.status === "already_assigned" ? "ADMIN_YOUTUBE_ALREADY_ASSIGNED" : "ADMIN_YOUTUBE_EXISTING_ASSIGNED",
+      message: result.status === "imported" ? `Song imported at sequence ${result.sequence}.` : result.status === "already_assigned" ? `Song was already assigned at sequence ${result.sequence}.` : `Existing song assigned at sequence ${result.sequence}.`,
       values,
     };
   } catch (error) {
-    return safeActionError(error instanceof Error ? error.message : "Unable to import song.", "ADMIN_YOUTUBE_IMPORT_FAILED", undefined, values);
+    return importFailure(error, values);
   }
 }
 
@@ -409,22 +426,30 @@ type QueueImportOverride = {
   singers?: string;
   composer?: string;
   releaseYear?: number;
+  actorId?: string;
 };
 
 async function importQueueItem(supabase: NonNullable<Awaited<ReturnType<typeof requireActionAdmin>>["supabase"]>, item: DbYouTubeImportQueue, override?: QueueImportOverride) {
   if (item.status === "imported") return { youtubeVideoId: item.youtube_video_id, status: "duplicate", message: "Already imported" };
+  const channelId = override?.channelId || item.channel_id;
+  const sequence = override?.sequence || item.sequence;
+  if (!channelId || !isUuid(channelId) || typeof sequence !== "number" || !Number.isInteger(sequence) || sequence < 1) return { youtubeVideoId: item.youtube_video_id, status: "needs review", message: "A valid channel UUID and positive sequence are required" };
   if (item.duplicate_song_id) {
-    await supabase.from("youtube_import_queue").update({ status: "duplicate", reviewed_at: new Date().toISOString() }).eq("id", item.id);
-    return { youtubeVideoId: item.youtube_video_id, status: "duplicate", message: "Already in catalogue" };
+    const assignment = await supabase.rpc("assign_song_to_channel_atomic", {
+      p_channel_id: channelId,
+      p_song_id: item.duplicate_song_id,
+      p_requested_sequence: sequence,
+      p_actor_id: override?.actorId ?? null,
+    });
+    if (assignment.error) throw new ImportStageError("channel_assignment", "ADMIN_IMPORT_EXISTING_ASSIGNMENT_FAILED", "Existing song channel assignment failed.");
+    const result = assignment.data as { status?: string; sequence?: number } | null;
+    await supabase.from("youtube_import_queue").update({ status: "imported", imported_song_id: item.duplicate_song_id, reviewed_at: new Date().toISOString(), channel_id: channelId, sequence: result?.sequence ?? sequence }).eq("id", item.id);
+    return { youtubeVideoId: item.youtube_video_id, status: result?.status ?? "assigned_existing", message: result?.status === "already_assigned" ? "Already assigned" : "Existing song assigned" };
   }
   if (item.availability !== "available" || !item.embeddable) {
     await supabase.from("youtube_import_queue").update({ status: "unavailable", reviewed_at: new Date().toISOString() }).eq("id", item.id);
     return { youtubeVideoId: item.youtube_video_id, status: "unavailable", message: "Unavailable or non-embeddable" };
   }
-
-  const channelId = override?.channelId || item.channel_id;
-  const sequence = override?.sequence || item.sequence;
-  if (!channelId || !sequence) return { youtubeVideoId: item.youtube_video_id, status: "needs review", message: "Channel and sequence are required" };
 
   const metadata = await fetchOneYouTubeVideoMetadata(item.youtube_video_id);
   const suggestions = suggestedMetadataFromQueue(item);
@@ -449,17 +474,18 @@ async function importQueueItem(supabase: NonNullable<Awaited<ReturnType<typeof r
     composer,
     lyricist: suggestions.lyricist,
     ...taxonomy,
+    actorId: override?.actorId,
   });
   await supabase
     .from("youtube_import_queue")
-    .update({ status: result.status === "duplicate" ? "duplicate" : "imported", imported_song_id: result.songId, reviewed_at: new Date().toISOString(), channel_id: channelId, sequence })
+    .update({ status: "imported", imported_song_id: result.songId, reviewed_at: new Date().toISOString(), channel_id: channelId, sequence: result.sequence })
     .eq("id", item.id);
-  return { youtubeVideoId: item.youtube_video_id, status: result.status, message: result.status === "imported" ? "Imported" : "Duplicate" };
+  return { youtubeVideoId: item.youtube_video_id, status: result.status, message: result.status === "imported" ? "Imported" : result.status === "already_assigned" ? "Already assigned" : "Existing song assigned" };
 }
 
 export async function importQueuedYouTubeItemAction(formData: FormData) {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) return;
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") return;
   const itemId = String(formData.get("queueId") ?? "");
   const channelId = String(formData.get("channelId") ?? "");
   const sequence = Number(formData.get("sequence") ?? 0);
@@ -472,6 +498,7 @@ export async function importQueuedYouTubeItemAction(formData: FormData) {
     releaseYear: Number(formData.get("releaseYear") ?? 0),
     singers: String(formData.get("singers") ?? ""),
     composer: String(formData.get("composer") ?? ""),
+    actorId: context.userId,
   });
   revalidatePath("/admin");
   revalidatePublicCatalogue([channelId]);
@@ -485,8 +512,8 @@ export async function rejectQueuedYouTubeItemAction(formData: FormData) {
 }
 
 export async function bulkImportQueuedYouTubeItemsAction(_previousState: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) return { ok: false, message: "Unauthorized.", code: "ADMIN_UNAUTHORIZED" };
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") return { ok: false, message: "Unauthorized.", code: "ADMIN_UNAUTHORIZED" };
   const ids = formData.getAll("queueIds").map(String);
   const channelId = String(formData.get("bulkChannelId") ?? "");
   const startingSequence = Number(formData.get("bulkStartingSequence") || 1);
@@ -495,7 +522,7 @@ export async function bulkImportQueuedYouTubeItemsAction(_previousState: ActionR
   let sequence = Number.isInteger(startingSequence) && startingSequence > 0 ? startingSequence : 1;
   for (const item of (data ?? []) as DbYouTubeImportQueue[]) {
     try {
-      results.push(await importQueueItem(supabase, item, { channelId: channelId || item.channel_id || undefined, sequence: sequence || item.sequence || undefined }));
+      results.push(await importQueueItem(supabase, item, { channelId: channelId || item.channel_id || undefined, sequence: sequence || item.sequence || undefined, actorId: context.userId }));
       sequence += 1;
     } catch (error) {
       results.push({ youtubeVideoId: item.youtube_video_id, status: "failed", message: error instanceof Error ? error.message : "Failed" });
@@ -547,30 +574,32 @@ export async function setSongStatusAction(formData: FormData) {
 }
 
 export async function assignSongAction(formData: FormData) {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) {
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") {
     return;
   }
 
   const songId = String(formData.get("songId") ?? "");
   const channelId = String(formData.get("channelId") ?? "");
-  const sequence = Number(formData.get("sequence") ?? 999);
-  if (!isUuid(songId) || !isUuid(channelId) || !Number.isInteger(sequence) || sequence < 1) return;
-  await supabase.from("channel_songs").upsert({ song_id: songId, channel_id: channelId, sequence, active: true }, { onConflict: "channel_id,song_id" });
+  const sequenceInput = String(formData.get("sequence") ?? "").trim();
+  const sequence = sequenceInput ? Number(sequenceInput) : null;
+  if (!isUuid(songId) || !isUuid(channelId) || (sequence !== null && (!Number.isInteger(sequence) || sequence < 1))) return;
+  await supabase.rpc("assign_song_to_channel_atomic", { p_song_id: songId, p_channel_id: channelId, p_requested_sequence: sequence, p_actor_id: context.userId });
   revalidatePath("/admin");
   revalidatePublicCatalogue([channelId]);
 }
 
 export async function reorderAssignmentAction(formData: FormData) {
-  const { supabase } = await requireActionAdmin();
-  if (!supabase) {
+  const { context, supabase } = await requireActionAdmin();
+  if (!supabase || context.status !== "ok") {
     return;
   }
 
   const assignmentId = String(formData.get("assignmentId") ?? "");
   const sequence = Number(formData.get("sequence") ?? 1);
   const active = String(formData.get("active")) === "true";
-  await supabase.from("channel_songs").update({ sequence, active }).eq("id", assignmentId);
+  if (!isUuid(assignmentId) || !Number.isInteger(sequence) || sequence < 1) return;
+  await supabase.rpc("set_channel_assignment_atomic", { p_assignment_id: assignmentId, p_position: sequence, p_active: active, p_actor_id: context.userId });
   revalidatePath("/admin");
   revalidatePath("/");
 }
