@@ -6,7 +6,7 @@ Source of truth: `/Users/abhishekkola/Downloads/Paatala_Vela_Development_Backlog
 
 The workbook contains six worksheets (`Improvement Backlog`, `Roadmap`, `KPIs`, `Development Items`, `Delivery Plan`, and `Analysis`) and 34 development items. Phase 1 contains DEV-001 through DEV-017 plus DEV-025. Phase 2 and Phase 3 items are intentionally outside this implementation run.
 
-On 2026-08-23 the user approved three additional Phase 1 P0 items, DEV-035 through DEV-037. These additions supersede the workbook where scope conflicts; the uploaded workbook remains unchanged.
+On 2026-08-23 the user approved DEV-035 through DEV-037, and on 2026-08-24 approved DEV-038 through DEV-040, as additional Phase 1 P0 items. These additions supersede the workbook where scope conflicts; the uploaded workbook remains unchanged.
 
 ## Phase 1 Audit
 
@@ -33,6 +33,9 @@ On 2026-08-23 the user approved three additional Phase 1 P0 items, DEV-035 throu
 | DEV-035 - Add persistent shuffle control inside every channel | Phase 1 | P0 | Complete | Non-mutating fair-cycle shuffle, history, catalogue reconciliation, versioned preference, accessible control, analytics, reload behavior, and empty/one/two/many tests are implemented. | No implementation gap found; future tuning of the recent window remains product-owned. | DEV-015 | Preserve deterministic database sequence and the documented listener-only queue contract. |
 | DEV-036 - Fix channels that do not start playback after selection | Phase 1 | P0 | Complete | Populated tile selection requests playback from the gesture, the singleton uses current callbacks, empty queues stop old media, confirmed PLAYING owns analytics/presence, autoplay fallback and bounded errors are explicit. | Audible browser behavior remains subject to YouTube embed availability and browser autoplay policy by design. | DEV-015 | Preserve the lifecycle tests and confirmed-playback contract. |
 | DEV-037 - Prevent stale channel catalogue and player-cache behaviour | Phase 1 | P0 | Complete | UUID/version-keyed no-store refresh, request abort/revision guard, isolated queue replacement, exact admin route revalidation, CDN headers, retry UI, and cache documentation are implemented. | No service worker exists; immutable static asset caching remains intentionally unchanged. | DEV-036 | Preserve targeted invalidation and avoid global cache disabling. |
+| DEV-038 - Audit and repair channel-song sequence integrity | Phase 1 | P0 | Complete | Pre-repair audit captured 105 relationships, 25 duplicate-group rows and one sequence-zero row; the reversible migration repaired all channels and added scoped constraints. | No remaining integrity gap after the post-repair scan. | None | Preserve the backup mapping and run the repeatable audit after catalogue maintenance. |
+| DEV-039 - Fix admin song import and collision-free sequence allocation | Phase 1 | P0 | Complete | One service-only PostgreSQL transaction resolves/creates the song, taxonomy and assignment under video/channel locks with idempotent outcomes and staged safe errors. | Hosting logs still require Netlify access for production-only diagnosis. | DEV-038 | Preserve atomic RPC use in video, playlist, existing-song, move, reorder and removal paths. |
+| DEV-040 - Fix automatic and manual playback navigation using stable queue identity | Phase 1 | P0 | Complete | Queue entries retain assignment UUID/channel UUID; manual and automatic advancement share one function; ended events use durable load identity and stale-video filtering. | Physical-device media policy remains browser-owned. | DEV-038 | Preserve assignment identity and transition parity tests. |
 
 ## Live Catalogue Baseline
 

@@ -16,7 +16,10 @@
 | Hindi Hits launches on demand | Implemented | UUID-backed empty channel and language/availability triggers are live; no songs fabricated. |
 | Language analytics reconcile | Implemented | New events/dimensions, DB event constraint, and admin language/mode reports are live and tested. |
 | Feedback UUID handling | Complete | Valid, null, omitted, malformed, slug, unknown, insert, and general-feedback tests pass. |
-| Type-check, lint, tests, build | Pass | Type-check, lint, 163 tests, and the Next.js production build pass. |
+| Type-check, lint, tests, build | Pass | Type-check, lint, 206 tests, and the Next.js 16.3.1 production build pass. |
+| Channel sequence integrity | Implemented | 105 rows reconciled; zero collisions/null/non-positive values; reversible mapping and scoped constraints are live. |
+| Atomic admin import | Implemented | Video/playlist imports use one locked transaction with idempotent existing-song outcomes and safe staged errors. |
+| Stable playback navigation | Implemented | Assignment UUID identity, shared manual/automatic advance, five-transition parity, wrap and duplicate-ended tests pass. |
 
 ## User-approved Additions
 
@@ -29,3 +32,6 @@
 - [x] Selected-channel catalogue refresh is isolated by internal channel UUID.
 - [x] Dynamic catalogue cache behavior is documented and users do not need to clear browser cache.
 - [x] Updated type-check, lint, tests, and production build pass.
+- [x] Suprabhata, Tea Shop, Prema, and all other active channels have unique contiguous active sequences.
+- [x] Automatic and manual Next share one tested queue-advance function.
+- [x] Sequence repair backup and rollback mapping are retained in Supabase.
