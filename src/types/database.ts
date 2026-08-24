@@ -635,6 +635,35 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      assign_song_to_channel_atomic: {
+        Args: {
+          p_channel_id: string;
+          p_song_id: string;
+          p_requested_sequence?: number | null;
+          p_actor_id?: string | null;
+        };
+        Returns: Record<string, unknown>;
+      };
+      import_song_with_assignment_atomic: {
+        Args: {
+          p_channel_id: string;
+          p_song: Record<string, unknown>;
+          p_requested_sequence?: number | null;
+          p_mood_codes?: string[];
+          p_occasion_codes?: string[];
+          p_actor_id?: string | null;
+        };
+        Returns: Record<string, unknown>;
+      };
+      set_channel_assignment_atomic: {
+        Args: {
+          p_assignment_id: string;
+          p_position: number;
+          p_active: boolean;
+          p_actor_id?: string | null;
+        };
+        Returns: Record<string, unknown>;
+      };
       reorder_channel_assignments: {
         Args: {
           p_channel_id: string;

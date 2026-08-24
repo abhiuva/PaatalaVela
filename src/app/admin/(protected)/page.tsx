@@ -105,13 +105,13 @@ export default async function AdminPage() {
     count: data.assignments.filter((assignment) => assignment.channel_id === channel.id && assignment.active && assignment.songs?.active).length,
   }));
   const duplicateSequenceWarnings = data.channels.flatMap((channel) => {
-    const counts = new Map<number, number>();
+    const groups = new Map<number, typeof data.assignments>();
     data.assignments
       .filter((assignment) => assignment.channel_id === channel.id && assignment.active)
-      .forEach((assignment) => counts.set(assignment.sequence, (counts.get(assignment.sequence) ?? 0) + 1));
-    return [...counts.entries()]
-      .filter(([, count]) => count > 1)
-      .map(([sequence, count]) => `${channel.name}: sequence ${sequence} is used ${count} times.`);
+      .forEach((assignment) => groups.set(assignment.sequence, [...(groups.get(assignment.sequence) ?? []), assignment]));
+    return [...groups.entries()]
+      .filter(([, assignments]) => assignments.length > 1)
+      .map(([sequence, assignments]) => ({ channel, sequence, assignments }));
   });
 
   return (
@@ -147,7 +147,15 @@ export default async function AdminPage() {
         ) : null}
         {duplicateSequenceWarnings.length > 0 ? (
           <div className="mt-3 rounded-md border border-amber-200/25 bg-amber-300/10 px-3 py-2 text-sm text-amber-50">
-            {duplicateSequenceWarnings.map((warning) => <p key={warning}>{warning}</p>)}
+            <p className="font-bold">Catalogue sequence repair required</p>
+            <p className="mt-1 text-amber-50/75">Regular edits are protected by the database constraint after the approved repair migration. Review and confirm the maintenance migration; ordering is never repaired silently.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {duplicateSequenceWarnings.map((warning) => (
+                <li key={`${warning.channel.id}:${warning.sequence}`}>
+                  {warning.channel.name}, sequence {warning.sequence}: {warning.assignments.map((assignment) => `${assignment.songs?.title ?? "Missing song"} (${assignment.id})`).join(", ")}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
