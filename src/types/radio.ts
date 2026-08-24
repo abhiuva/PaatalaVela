@@ -24,6 +24,8 @@ export type Song = {
   durationSeconds: number | null;
   sequence?: number;
   assignmentCreatedAt?: string;
+  assignmentId?: string;
+  channelId?: string | null;
   active?: boolean;
   embedStatus?: "unchecked" | "available" | "unavailable" | "embedding_disabled" | "region_restricted";
 };

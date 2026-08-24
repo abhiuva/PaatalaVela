@@ -75,4 +75,38 @@ describe("useRadioPlayer channel lifecycle", () => {
     expect(result.current.song?.id).not.toBe(before);
     expect(result.current.listenerOffset).toBe(false);
   });
+
+  it("uses identical ordered transitions for five manual and automatic advances", async () => {
+    const songs = [song("a", 1), song("b", 1), song("c", 2), song("d", 3), song("e", 4), song("f", 5)];
+    const channels = [channel(ids[0], "first", songs)];
+    const manual = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    const automatic = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    await waitFor(() => expect(manual.result.current.song).not.toBeNull());
+    await waitFor(() => expect(automatic.result.current.song).not.toBeNull());
+    act(() => manual.result.current.selectChannel("first"));
+    act(() => automatic.result.current.selectChannel("first"));
+    const manualIds: string[] = [];
+    const automaticIds: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      act(() => manual.result.current.nextTrack());
+      act(() => automatic.result.current.handleEnded());
+      manualIds.push(manual.result.current.song?.id ?? "");
+      automaticIds.push(automatic.result.current.song?.id ?? "");
+    }
+    expect(automaticIds).toEqual(manualIds);
+    expect(manualIds).toEqual(["b", "c", "d", "e", "f"]);
+  });
+
+  it("ignores duplicate ended callbacks for the same loaded queue entry", async () => {
+    const channels = [channel(ids[0], "first", [song("a", 1), song("b", 2), song("c", 3)])];
+    const { result } = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    await waitFor(() => expect(result.current.song).not.toBeNull());
+    act(() => result.current.selectChannel("first"));
+    const ended = result.current.handleEnded;
+    act(() => {
+      ended();
+      ended();
+    });
+    expect(result.current.song?.id).toBe("b");
+  });
 });

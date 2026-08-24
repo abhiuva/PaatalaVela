@@ -16,6 +16,7 @@ export type YTPlayer = {
   stopVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
+  getVideoData?: () => { video_id?: string };
   setVolume: (volume: number) => void;
   destroy: () => void;
 };

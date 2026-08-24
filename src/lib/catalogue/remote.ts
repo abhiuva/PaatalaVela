@@ -60,6 +60,8 @@ function toChannel(row: ChannelWithSongs): Channel | null {
         durationSeconds: song.duration_seconds,
         sequence: assignment.sequence,
         assignmentCreatedAt: assignment.created_at,
+        assignmentId: assignment.id,
+        channelId: row.id,
         active: song.active,
         embedStatus: song.embed_status,
       };

@@ -5,6 +5,8 @@ import type { QueueItem } from "@/lib/radio/queue";
 const songs: QueueItem[] = [
   {
     id: "s1",
+    assignmentId: "a1",
+    channelId: "c1",
     title: "Song 1",
     film: "Film",
     year: 2000,
@@ -24,6 +26,8 @@ const songs: QueueItem[] = [
   },
   {
     id: "s2",
+    assignmentId: "a2",
+    channelId: "c1",
     title: "Song 2",
     film: "Film",
     year: 2000,

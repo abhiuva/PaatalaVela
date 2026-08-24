@@ -41,6 +41,28 @@ describe("YouTubePlayer lifecycle", () => {
     await waitFor(() => expect(player.stopVideo).toHaveBeenCalled());
   });
 
+  it("ignores a stale ENDED event from the previously loaded video", async () => {
+    let options!: ConstructorParameters<YTConstructor>[1];
+    let player!: YTPlayer;
+    let renderedVideoId = "aaaaaaaaaaa";
+    const Player = function (_elementId: string, nextOptions: ConstructorParameters<YTConstructor>[1]) {
+      options = nextOptions;
+      player = { loadVideoById: vi.fn((id: string) => { renderedVideoId = id; }), cueVideoById: vi.fn(), playVideo: vi.fn(), pauseVideo: vi.fn(), stopVideo: vi.fn(), seekTo: vi.fn(), getCurrentTime: vi.fn(() => 0), getVideoData: vi.fn(() => ({ video_id: renderedVideoId })), setVolume: vi.fn(), destroy: vi.fn() } as YTPlayer;
+      return player;
+    } as unknown as YTConstructor;
+    window.YT = { Player, PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2 } };
+    const onEnded = vi.fn();
+    const common = { isPlaying: true, hasUserInteracted: true, volume: 70, seekSeconds: 0, onReady: vi.fn(), onPlaybackStarted: vi.fn(), onAutoplayBlocked: vi.fn(), onEnded, onError: vi.fn(), onPositionChange: vi.fn() };
+    const view = render(<YouTubePlayer {...common} videoId="aaaaaaaaaaa" seekRevision={1} />);
+    await waitFor(() => expect(options).toBeDefined());
+    act(() => options.events.onReady({ target: player }));
+    view.rerender(<YouTubePlayer {...common} videoId="bbbbbbbbbbb" seekRevision={2} />);
+    await waitFor(() => expect(player.loadVideoById).toHaveBeenCalledWith("bbbbbbbbbbb"));
+    renderedVideoId = "aaaaaaaaaaa";
+    act(() => options.events.onStateChange({ data: 0, target: player }));
+    expect(onEnded).not.toHaveBeenCalled();
+  });
+
   it("omits the videoId constructor option while the catalogue is loading", async () => {
     let options!: ConstructorParameters<YTConstructor>[1];
     const Player = function (_elementId: string, nextOptions: ConstructorParameters<YTConstructor>[1]) {

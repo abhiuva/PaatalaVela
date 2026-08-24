@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { channels as localChannels } from "@/data/channels";
 import { getChannelBySlug, getNextChannel, getScheduledChannel } from "@/lib/schedule";
 import { calculateLivePlaybackPosition } from "@/lib/radio/live-position";
-import { buildChannelQueue, getNextQueueIndex, type PlaybackMode } from "@/lib/radio/queue";
+import { buildChannelQueue, getAdjacentQueueIndex, getNextQueueIndex, type PlaybackMode } from "@/lib/radio/queue";
 import { initialPlaybackState, playbackReducer } from "@/lib/radio/playback-state";
 import { trackRadioEvent } from "@/lib/radio/analytics";
 import { createShuffleState, nextShuffledSong, previousShuffledSong, readShufflePreference, writeShufflePreference, type ShuffleState } from "@/lib/radio/shuffle";
@@ -20,6 +20,7 @@ type StoredPlayback = {
   playbackMode: PlaybackMode;
   selectedManualChannelSlug: ChannelSlug | null;
   manualStartedScheduleSlug: ChannelSlug | null;
+  currentManualAssignmentId: string | null;
   currentManualSongId: string | null;
   currentManualPosition: number;
   volume: number;
@@ -54,6 +55,7 @@ function readStoredPlayback(): StoredPlayback | null {
       playbackMode: "manual",
       selectedManualChannelSlug,
       manualStartedScheduleSlug: typeof manualStartedScheduleSlug === "string" ? manualStartedScheduleSlug : null,
+      currentManualAssignmentId: typeof parsed.currentManualAssignmentId === "string" ? parsed.currentManualAssignmentId : null,
       currentManualSongId: typeof parsed.currentManualSongId === "string" ? parsed.currentManualSongId : null,
       currentManualPosition: Number.isFinite(parsed.currentManualPosition) ? Math.max(0, Number(parsed.currentManualPosition)) : 0,
       volume: Number.isFinite(parsed.volume) ? Math.min(100, Math.max(0, Number(parsed.volume))) : 70,
@@ -119,7 +121,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const [listenerOffset, setListenerOffset] = useState(false);
   const [manualStartedScheduleSlug, setManualStartedScheduleSlug] = useState<ChannelSlug | null>(null);
   const [channelSlug, setChannelSlug] = useState<ChannelSlug>(scheduledChannel.slug);
-  const [currentSongId, setCurrentSongId] = useState<string | null>(null);
+  const [currentQueueEntryId, setCurrentQueueEntryId] = useState<string | null>(null);
   const [seekSeconds, setSeekSeconds] = useState(0);
   const [seekRevision, setSeekRevision] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -131,8 +133,8 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
   const currentPositionRef = useRef(0);
-  const lastEndedSongIdRef = useRef<string | null>(null);
-  const failedSongIdsRef = useRef<Set<string>>(new Set());
+  const lastHandledEndedKeyRef = useRef<string | null>(null);
+  const failedQueueEntryIdsRef = useRef<Set<string>>(new Set());
   const lastLiveSyncKeyRef = useRef<string | null>(null);
   const impressedChannelIdsRef = useRef<Set<string>>(new Set());
   const shuffleStateRef = useRef<ShuffleState | null>(null);
@@ -144,7 +146,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const scheduledChannelReference = scheduledChannel.id;
   const queueMode = playbackMode === "manual" ? "manual" : "live";
   const activeQueue = useMemo(() => buildChannelQueue(selectedChannel, queueMode), [queueMode, selectedChannel]);
-  const requestedTrackIndex = activeQueue.items.findIndex((item) => item.id === currentSongId);
+  const requestedTrackIndex = activeQueue.items.findIndex((item) => item.assignmentId === currentQueueEntryId);
   const trackIndex = requestedTrackIndex >= 0 ? requestedTrackIndex : 0;
   const song = activeQueue.items[trackIndex] ?? null;
   const nextChannel = useMemo(() => getNextChannel(selectedChannel.slug, availableChannels), [availableChannels, selectedChannel.slug]);
@@ -174,14 +176,15 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       setManualStartedScheduleSlug(null);
       setListenerOffset(false);
       setChannelSlug(playable.channel.slug);
-      setCurrentSongId(livePosition?.songId ?? playable.queue.items[0]?.id ?? null);
+      const liveItem = playable.queue.items.find((item) => item.id === livePosition?.songId) ?? playable.queue.items[0];
+      setCurrentQueueEntryId(liveItem?.assignmentId ?? null);
       setSeekSeconds(livePosition?.seekSeconds ?? 0);
       setSeekRevision((current) => current + 1);
       setFallbackReason(playable.fallbackReason);
       setAutoplayBlocked(false);
       setPlaybackNotice(null);
       setBoundaryStartedAt(null);
-      failedSongIdsRef.current = new Set();
+      failedQueueEntryIdsRef.current = new Set();
       dispatch({ type: "RETURN_TO_LIVE", songId: livePosition?.songId ?? null });
       trackRadioEvent(reason === "return" ? "returned_to_live" : "live_position_calculated", {
         channel_id: playable.channel.id,
@@ -201,11 +204,18 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
         const channel = availableChannels.find((item) => item.slug === stored.selectedManualChannelSlug);
         if (channel) {
           const queue = buildChannelQueue(channel, "manual");
-          const restoredIndex = Math.max(0, queue.items.findIndex((item) => item.id === stored.currentManualSongId));
+          const restoredIndex = Math.max(
+            0,
+            queue.items.findIndex((item) =>
+              stored.currentManualAssignmentId
+                ? item.assignmentId === stored.currentManualAssignmentId
+                : item.id === stored.currentManualSongId,
+            ),
+          );
           setPlaybackMode("manual");
           setManualStartedScheduleSlug(stored.manualStartedScheduleSlug ?? scheduledChannel.slug);
           setChannelSlug(channel.slug);
-          setCurrentSongId(queue.items[restoredIndex === -1 ? 0 : restoredIndex]?.id ?? null);
+          setCurrentQueueEntryId(queue.items[restoredIndex]?.assignmentId ?? null);
           setSeekSeconds(stored.currentManualPosition);
           setSeekRevision((current) => current + 1);
           return;
@@ -235,6 +245,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       playbackMode: "manual",
       selectedManualChannelSlug: selectedChannel.slug,
       manualStartedScheduleSlug,
+      currentManualAssignmentId: song.assignmentId,
       currentManualSongId: song.id,
       currentManualPosition: currentPositionRef.current,
       volume,
@@ -313,10 +324,9 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const loadIndex = useCallback(
     (index: number, nextSeekSeconds = 0) => {
       const boundedIndex = activeQueue.items.length > 0 ? ((index % activeQueue.items.length) + activeQueue.items.length) % activeQueue.items.length : 0;
-      setCurrentSongId(activeQueue.items[boundedIndex]?.id ?? null);
+      setCurrentQueueEntryId(activeQueue.items[boundedIndex]?.assignmentId ?? null);
       setSeekSeconds(nextSeekSeconds);
       setSeekRevision((current) => current + 1);
-      lastEndedSongIdRef.current = null;
       dispatch({ type: "NEXT", songId: activeQueue.items[boundedIndex]?.id ?? "" });
     },
     [activeQueue.items],
@@ -333,11 +343,11 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       setManualStartedScheduleSlug(scheduledChannel.slug);
       setListenerOffset(false);
       setChannelSlug(nextChannelSlug);
-      setCurrentSongId(nextQueue.items[0]?.id ?? null);
+      setCurrentQueueEntryId(nextQueue.items[0]?.assignmentId ?? null);
       setSeekSeconds(0);
       setSeekRevision((current) => current + 1);
-      failedSongIdsRef.current = new Set();
-      shuffleStateRef.current = createShuffleState(nextChannel.id ?? nextChannel.slug, nextQueue.items, nextQueue.items[0]?.id ?? null);
+      failedQueueEntryIdsRef.current = new Set();
+      shuffleStateRef.current = createShuffleState(nextChannel.id ?? nextChannel.slug, nextQueue.items, nextQueue.items[0]?.assignmentId ?? null);
       setAutoplayBlocked(false);
       setPlaybackNotice(null);
       setIsPlaying(nextQueue.items.length > 0);
@@ -391,33 +401,33 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     });
   }, [playbackMode, scheduledChannelReference, selectedChannel, selectedChannelReference, song]);
 
-  const moveTrack = useCallback(
-    (direction: 1 | -1) => {
-      setHasUserInteracted(true);
-      if (playbackMode === "live") {
-        setListenerOffset(true);
+  const advanceQueue = useCallback(
+    (direction: 1 | -1, userInitiated: boolean) => {
+      if (activeQueue.items.length === 0) return;
+      if (userInitiated) {
+        setHasUserInteracted(true);
+        if (playbackMode === "live") setListenerOffset(true);
+        failedQueueEntryIdsRef.current = new Set();
       }
-      failedSongIdsRef.current = new Set();
-      let nextIndex = getNextQueueIndex(activeQueue.items.length, trackIndex, direction);
+      let nextIndex = getAdjacentQueueIndex(activeQueue.items, song?.assignmentId ?? null, direction);
       if (shuffleEnabled && activeQueue.items.length > 1) {
         const channelKey = selectedChannel.id ?? selectedChannel.slug;
-        const state = shuffleStateRef.current ?? createShuffleState(channelKey, activeQueue.items, song?.id ?? null);
+        const state = shuffleStateRef.current ?? createShuffleState(channelKey, activeQueue.items, song?.assignmentId ?? null);
         const result = direction === 1
-          ? nextShuffledSong(state, channelKey, activeQueue.items, song?.id ?? null)
-          : previousShuffledSong(state, activeQueue.items, song?.id ?? null);
+          ? nextShuffledSong(state, channelKey, activeQueue.items, song?.assignmentId ?? null)
+          : previousShuffledSong(state, activeQueue.items, song?.assignmentId ?? null);
         shuffleStateRef.current = result.state;
         const shuffledId = "nextId" in result ? result.nextId : result.previousId;
-        const shuffledIndex = activeQueue.items.findIndex((item) => item.id === shuffledId);
+        const shuffledIndex = activeQueue.items.findIndex((item) => item.assignmentId === shuffledId);
         if (shuffledIndex >= 0) nextIndex = shuffledIndex;
       }
-      dispatch({ type: direction === 1 ? "NEXT" : "PREVIOUS", songId: activeQueue.items[nextIndex]?.id ?? "" });
       loadIndex(nextIndex, 0);
     },
-    [activeQueue.items, loadIndex, playbackMode, selectedChannel.id, selectedChannel.slug, shuffleEnabled, song?.id, trackIndex],
+    [activeQueue.items, loadIndex, playbackMode, selectedChannel.id, selectedChannel.slug, shuffleEnabled, song?.assignmentId],
   );
 
-  const nextTrack = useCallback(() => moveTrack(1), [moveTrack]);
-  const previousTrack = useCallback(() => moveTrack(-1), [moveTrack]);
+  const nextTrack = useCallback(() => advanceQueue(1, true), [advanceQueue]);
+  const previousTrack = useCallback(() => advanceQueue(-1, true), [advanceQueue]);
 
   const toggleShuffle = useCallback(() => {
     if (activeQueue.items.length <= 1) return;
@@ -425,7 +435,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       const enabled = !current;
       writeShufflePreference(window.localStorage, enabled);
       if (enabled) {
-        shuffleStateRef.current = createShuffleState(selectedChannel.id ?? selectedChannel.slug, activeQueue.items, song?.id ?? null);
+        shuffleStateRef.current = createShuffleState(selectedChannel.id ?? selectedChannel.slug, activeQueue.items, song?.assignmentId ?? null);
       }
       trackRadioEvent("shuffle_mode_changed", {
         channel_id: selectedChannelReference,
@@ -435,14 +445,17 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       });
       return enabled;
     });
-  }, [activeQueue.items, selectedChannel.id, selectedChannel.slug, selectedChannelReference, song?.id]);
+  }, [activeQueue.items, selectedChannel.id, selectedChannel.slug, selectedChannelReference, song?.assignmentId]);
 
   const handleEnded = useCallback(() => {
-    if (!song || lastEndedSongIdRef.current === song.id) {
+    if (!song) {
       return;
     }
 
-    lastEndedSongIdRef.current = song.id;
+    const endedKey = `${selectedChannel.id ?? selectedChannel.slug}:${song.assignmentId}:${seekRevision}`;
+    if (lastHandledEndedKeyRef.current === endedKey) return;
+
+    lastHandledEndedKeyRef.current = endedKey;
     dispatch({ type: "SONG_ENDED", songId: song.id });
     trackRadioEvent("song_completed", {
       song_id: song.id,
@@ -457,26 +470,17 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       return;
     }
 
-    let nextIndex = getNextQueueIndex(activeQueue.items.length, trackIndex, 1);
-    if (shuffleEnabled && activeQueue.items.length > 1) {
-      const channelKey = selectedChannel.id ?? selectedChannel.slug;
-      const state = shuffleStateRef.current ?? createShuffleState(channelKey, activeQueue.items, song.id);
-      const result = nextShuffledSong(state, channelKey, activeQueue.items, song.id);
-      shuffleStateRef.current = result.state;
-      const shuffledIndex = activeQueue.items.findIndex((item) => item.id === result.nextId);
-      if (shuffledIndex >= 0) nextIndex = shuffledIndex;
-    }
-    loadIndex(nextIndex, 0);
-  }, [activeQueue.items, loadIndex, pendingScheduledSwitch, selectedChannel, selectedChannelReference, shuffleEnabled, song, syncToLive, trackIndex]);
+    advanceQueue(1, false);
+  }, [advanceQueue, pendingScheduledSwitch, seekRevision, selectedChannel, selectedChannelReference, song, syncToLive]);
 
   const handlePlayerError = useCallback((code = 0) => {
     if (!song) {
       return;
     }
 
-    failedSongIdsRef.current.add(song.id);
+    failedQueueEntryIdsRef.current.add(song.assignmentId);
     setPlaybackNotice("Song unavailable, trying next.");
-    const exhausted = failedSongIdsRef.current.size >= activeQueue.items.length;
+    const exhausted = failedQueueEntryIdsRef.current.size >= activeQueue.items.length;
     dispatch({ type: "PLAYER_ERROR", songId: song.id, exhausted });
     trackRadioEvent("player_error", {
       song_id: song.id,
@@ -494,7 +498,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     while (offset <= activeQueue.items.length) {
       const candidateIndex = getNextQueueIndex(activeQueue.items.length, trackIndex + offset - 1, 1);
       const candidate = activeQueue.items[candidateIndex];
-      if (candidate && !failedSongIdsRef.current.has(candidate.id)) {
+      if (candidate && !failedQueueEntryIdsRef.current.has(candidate.assignmentId)) {
         trackRadioEvent("song_skipped", {
           song_id: song.id,
           channel_id: selectedChannelReference,
@@ -502,12 +506,12 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
           listened_seconds: currentPositionRef.current,
         });
         if (shuffleEnabled) {
-          const eligible = activeQueue.items.filter((item) => !failedSongIdsRef.current.has(item.id));
+          const eligible = activeQueue.items.filter((item) => !failedQueueEntryIdsRef.current.has(item.assignmentId));
           const channelKey = selectedChannel.id ?? selectedChannel.slug;
-          const state = shuffleStateRef.current ?? createShuffleState(channelKey, eligible, song.id);
-          const result = nextShuffledSong(state, channelKey, eligible, song.id);
+          const state = shuffleStateRef.current ?? createShuffleState(channelKey, eligible, song.assignmentId);
+          const result = nextShuffledSong(state, channelKey, eligible, song.assignmentId);
           shuffleStateRef.current = result.state;
-          const shuffledIndex = activeQueue.items.findIndex((item) => item.id === result.nextId);
+          const shuffledIndex = activeQueue.items.findIndex((item) => item.assignmentId === result.nextId);
           if (shuffledIndex >= 0) loadIndex(shuffledIndex, 0);
         } else {
           loadIndex(candidateIndex, 0);
@@ -528,7 +532,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     setPlaybackNotice(null);
     setIsPlaying(true);
     dispatch({ type: "PLAY" });
-    const key = `${selectedChannel.id ?? selectedChannel.slug}:${song.id}:${seekRevision}`;
+    const key = `${selectedChannel.id ?? selectedChannel.slug}:${song.assignmentId}:${seekRevision}`;
     if (confirmedPlayingKeyRef.current === key) return;
     confirmedPlayingKeyRef.current = key;
     trackRadioEvent("song_started", {
@@ -561,6 +565,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
           STORAGE_KEY,
           JSON.stringify({
             ...existing,
+            currentManualAssignmentId: song.assignmentId,
             currentManualSongId: song.id,
             manualStartedScheduleSlug: existing.manualStartedScheduleSlug,
             currentManualPosition: positionSeconds,

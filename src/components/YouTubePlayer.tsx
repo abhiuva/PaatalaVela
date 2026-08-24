@@ -92,6 +92,8 @@ export function YouTubePlayer(props: YouTubePlayerProps) {
               if (currentVideoId) latestRef.current.onPlaybackStarted(currentVideoId);
             } else if (event.data === playerState?.ENDED) {
               clearConfirmationTimer();
+              const endedVideoId = event.target.getVideoData?.().video_id;
+              if (endedVideoId && endedVideoId !== latestRef.current.videoId) return;
               latestRef.current.onEnded();
             }
           },

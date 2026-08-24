@@ -14,7 +14,11 @@ export type ShuffleState = {
 };
 
 export function queueFingerprint(items: readonly QueueItem[]) {
-  return items.map((item) => `${item.id}:${item.sequence}:${item.embedStatus ?? "available"}`).join("|");
+  return items.map((item) => `${item.assignmentId}:${item.sequence}:${item.embedStatus ?? "available"}`).join("|");
+}
+
+function queueIds(items: readonly QueueItem[]) {
+  return items.map((item) => item.assignmentId);
 }
 
 function shuffled(ids: readonly string[], random: () => number) {
@@ -42,7 +46,7 @@ function newCycle(ids: readonly string[], currentId: string | null, recentIds: r
 }
 
 export function createShuffleState(channelKey: string, items: readonly QueueItem[], currentId: string | null, random: () => number = Math.random): ShuffleState {
-  const ids = items.map((item) => item.id);
+  const ids = queueIds(items);
   return {
     channelKey,
     catalogueFingerprint: queueFingerprint(items),
@@ -55,7 +59,7 @@ export function createShuffleState(channelKey: string, items: readonly QueueItem
 
 function reconcileState(state: ShuffleState, channelKey: string, items: readonly QueueItem[], currentId: string | null, random: () => number) {
   const fingerprint = queueFingerprint(items);
-  const eligible = new Set(items.map((item) => item.id));
+  const eligible = new Set(queueIds(items));
   if (state.channelKey !== channelKey) return createShuffleState(channelKey, items, currentId, random);
   if (state.catalogueFingerprint === fingerprint) return state;
   const recentIds = state.recentIds.filter((id) => eligible.has(id));
@@ -69,7 +73,7 @@ function reconcileState(state: ShuffleState, channelKey: string, items: readonly
 }
 
 export function nextShuffledSong(state: ShuffleState, channelKey: string, items: readonly QueueItem[], currentId: string | null, random: () => number = Math.random) {
-  const eligibleIds = items.map((item) => item.id);
+  const eligibleIds = queueIds(items);
   if (eligibleIds.length === 0) return { state: createShuffleState(channelKey, items, null, random), nextId: null };
   if (eligibleIds.length === 1) return { state: createShuffleState(channelKey, items, currentId, random), nextId: eligibleIds[0] };
 
@@ -96,7 +100,7 @@ export function nextShuffledSong(state: ShuffleState, channelKey: string, items:
 }
 
 export function previousShuffledSong(state: ShuffleState, items: readonly QueueItem[], currentId: string | null) {
-  const eligible = new Set(items.map((item) => item.id));
+  const eligible = new Set(queueIds(items));
   const history = [...state.historyIds];
   let previousId: string | null = null;
   while (history.length && !previousId) {

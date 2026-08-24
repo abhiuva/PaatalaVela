@@ -10,6 +10,8 @@ export type QueueWarning = {
 };
 
 export type QueueItem = Song & {
+  assignmentId: string;
+  channelId: string | null;
   durationSeconds: number;
   sequence: number;
   assignmentCreatedAt: string;
@@ -56,6 +58,8 @@ export function buildChannelQueue(channel: Channel, mode: PlaybackMode = "live")
   const items = channel.songs
     .map((song, index) => ({
       ...song,
+      assignmentId: song.assignmentId ?? `${channel.id ?? channel.slug}:${song.id}`,
+      channelId: song.channelId ?? channel.id,
       durationSeconds: song.durationSeconds ?? 0,
       sequence: song.sequence ?? (index + 1) * 10,
       assignmentCreatedAt: song.assignmentCreatedAt ?? "1970-01-01T00:00:00.000Z",
@@ -91,4 +95,14 @@ export function getNextQueueIndex(queueLength: number, currentIndex: number, dir
   }
 
   return (currentIndex + direction + queueLength) % queueLength;
+}
+
+export function getQueueIndexByAssignmentId(items: readonly QueueItem[], assignmentId: string | null) {
+  if (!assignmentId) return -1;
+  return items.findIndex((item) => item.assignmentId === assignmentId);
+}
+
+export function getAdjacentQueueIndex(items: readonly QueueItem[], currentAssignmentId: string | null, direction: 1 | -1) {
+  const currentIndex = getQueueIndexByAssignmentId(items, currentAssignmentId);
+  return getNextQueueIndex(items.length, currentIndex >= 0 ? currentIndex : 0, direction);
 }
