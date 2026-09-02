@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { LiveListenerCount } from "@/components/presence/LiveListenerCount";
 import { useListenerPresence } from "@/hooks/useListenerPresence";
+import { BRAND } from "@/config/brand";
 
 export function RadioPlayer() {
   const { now, formattedTime, formattedDate } = useIndiaTime();
@@ -28,14 +29,12 @@ export function RadioPlayer() {
   const canPlayCurrentSong = Boolean(radio.song) && catalogue.source === "supabase";
   const youtubeUrl = radio.song ? `https://www.youtube.com/watch?v=${radio.song.youtubeVideoId}` : "#";
   const shareText = encodeURIComponent(
-    `Listening to ${radio.channel.name} on Telugu Radio${radio.song ? `: ${radio.song.title} (${radio.song.film}) ${youtubeUrl}` : "."}`,
+    `Listening to ${radio.channel.name} on ${BRAND.name}${radio.song ? `: ${radio.song.title} (${radio.song.film}) ${youtubeUrl}` : "."}`,
   );
   useListenerPresence({ isPlaying: radio.playbackConfirmed, hasUserInteracted: radio.hasUserInteracted, channelSlug: radio.channel.slug, songId: radio.song?.id });
 
   useEffect(() => {
-    if (!window.sessionStorage.getItem("telugu-radio-session")) {
-      window.sessionStorage.setItem("telugu-radio-session", getOrCreateSessionId());
-    }
+    getOrCreateSessionId();
   }, []);
 
   const selectChannel = (channelSlug: string) => {
@@ -54,10 +53,8 @@ export function RadioPlayer() {
       <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 text-white sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/68">Telugu Music Radio</p>
-            <h1 className="mt-2 break-words font-[var(--font-noto-telugu)] text-5xl font-black leading-none sm:text-7xl">
-              పాటల వేళ
-            </h1>
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/68">Music by mood and time</p>
+            <h1 className="mt-2 break-words text-5xl font-black leading-none sm:text-7xl">{BRAND.name}</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-white/78">{radio.channel.strapline}</p>
             {catalogue.isLoading ? (
               <p className="mt-3 inline-flex rounded-full border border-white/18 bg-black/22 px-3 py-1 text-xs font-semibold text-white/72">
@@ -129,10 +126,10 @@ export function RadioPlayer() {
                   aria-label={radio.shuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
                   aria-pressed={radio.shuffleEnabled}
                   title={radio.shuffleAvailable ? "Shuffle this channel" : "Shuffle requires at least two songs"}
-                  className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 px-3 font-bold text-white transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+                  className={`flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 font-bold text-white transition focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:opacity-45 ${radio.shuffleEnabled ? "border-amber-200 bg-amber-300/25 shadow-[0_0_0_1px_rgba(253,230,138,0.35)] hover:bg-amber-300/30" : "border-white/20 bg-white/10 hover:bg-white/18"}`}
                 >
                   <Shuffle className="h-5 w-5" aria-hidden="true" />
-                  <span className="sr-only sm:not-sr-only">Shuffle</span>
+                  <span className="sr-only sm:not-sr-only">{radio.shuffleEnabled ? "Shuffle On" : "Shuffle"}</span>
                 </button>
                 <button
                   type="button"
@@ -143,7 +140,7 @@ export function RadioPlayer() {
                   aria-label={radio.isPlaying ? "Pause radio" : "Start radio"}
                 >
                   {radio.isPlaying && !radio.playbackConfirmed ? <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" /> : radio.isPlaying ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" aria-hidden="true" />}
-                  <span className="hidden sm:inline">{radio.isPlaying && !radio.playbackConfirmed ? "Starting playback" : radio.isPlaying ? "Pause" : radio.autoplayBlocked ? "Tap to play" : "Start"}</span>
+                  <span className="hidden sm:inline">{radio.isPlaying && !radio.playbackConfirmed ? "Starting playback" : radio.isPlaying ? "Pause" : radio.resumeRequired ? "Tap to resume" : radio.autoplayBlocked ? "Tap to play" : "Start"}</span>
                 </button>
                 <button
                   type="button"
@@ -159,7 +156,7 @@ export function RadioPlayer() {
 
               {radio.playbackNotice ? <p className="mt-3 text-sm font-semibold text-amber-100" role="status">{radio.playbackNotice}</p> : null}
               {radio.isPlaying && !radio.playbackConfirmed && !radio.playbackNotice ? <p className="mt-3 text-sm font-semibold text-white/78" role="status">Starting playback</p> : null}
-              {radio.autoplayBlocked ? <p className="mt-3 text-sm font-semibold text-white/78" role="status">Tap to play</p> : null}
+              {radio.autoplayBlocked && !radio.playbackNotice ? <p className="mt-3 text-sm font-semibold text-white/78" role="status">{radio.resumeRequired ? "Tap to resume" : "Tap to play"}</p> : null}
               {radio.playbackStatus === "exhausted" ? <p className="mt-3 text-sm font-semibold text-amber-100" role="status">No verified songs available.</p> : null}
 
               <label className="mt-5 flex items-center gap-3 text-sm font-semibold text-white/82">
@@ -200,7 +197,7 @@ export function RadioPlayer() {
                       return;
                     }
                     trackEvent("youtube_source_clicked", {
-                      session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+                      session_id: getOrCreateSessionId(),
                       song_id: radio.song.id,
                       channel_id: radio.channel.id ?? radio.channel.slug,
                     });
@@ -221,7 +218,7 @@ export function RadioPlayer() {
                       return;
                     }
                     trackEvent("whatsapp_share_clicked", {
-                      session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+                      session_id: getOrCreateSessionId(),
                       song_id: radio.song.id,
                       channel_id: radio.channel.id ?? radio.channel.slug,
                     });
@@ -234,6 +231,7 @@ export function RadioPlayer() {
             </section>
 
             <YouTubePlayer
+                queueEntryId={canPlayCurrentSong && radio.song ? radio.song.assignmentId : null}
                 videoId={canPlayCurrentSong && radio.song ? radio.song.youtubeVideoId : null}
                 isPlaying={radio.isPlaying}
                 hasUserInteracted={radio.hasUserInteracted}
@@ -243,6 +241,8 @@ export function RadioPlayer() {
                 onReady={radio.handlePlayerReady}
                 onPlaybackStarted={radio.handlePlaybackStarted}
                 onAutoplayBlocked={radio.handleAutoplayBlocked}
+                onResumeBlocked={radio.handleResumeBlocked}
+                onVisibilityResume={radio.handleVisibilityResume}
                 onEnded={radio.handleEnded}
                 onError={radio.handlePlayerError}
                 onPositionChange={radio.handlePositionChange}

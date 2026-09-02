@@ -1,3 +1,5 @@
+import { BRAND } from "@/config/brand";
+
 export default function TermsPage() {
   return (
     <main className="min-h-screen bg-neutral-950 px-4 py-8 text-white">
@@ -5,7 +7,7 @@ export default function TermsPage() {
         <h1 className="text-3xl font-black">Terms</h1>
         <p>This operational template requires professional legal review before commercial launch.</p>
         <p>Do not attempt to download embedded content, abuse public forms, scrape or attack admin systems, submit false takedown claims, or interfere with the YouTube player.</p>
-        <p>Use of embedded YouTube playback is subject to YouTube’s controls, availability and terms.</p>
+        <p>{BRAND.name} uses embedded YouTube playback subject to YouTube’s controls, availability and terms.</p>
       </article>
     </main>
   );

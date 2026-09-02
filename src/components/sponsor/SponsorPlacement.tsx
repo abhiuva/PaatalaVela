@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { selectSponsorCampaign } from "@/lib/sponsorship/selection";
 import type { PublicSponsorCampaign } from "@/lib/sponsorship/types";
 import type { SponsorPlacementType } from "@/types/database";
-import { trackEvent } from "@/lib/analytics/client";
+import { getOrCreateSessionId, trackEvent } from "@/lib/analytics/client";
 
 type SponsorPlacementProps = {
   campaigns: PublicSponsorCampaign[];
@@ -30,7 +30,7 @@ export function SponsorPlacement({ campaigns, channelId, placementType }: Sponso
           timer = window.setTimeout(() => {
             impressionSentRef.current = campaign.id;
             trackEvent("sponsor_impression", {
-              session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+              session_id: getOrCreateSessionId(),
               campaign_id: campaign.id,
               placement_type: placementType,
             });
@@ -64,7 +64,7 @@ export function SponsorPlacement({ campaigns, channelId, placementType }: Sponso
       rel="sponsored noopener noreferrer"
       onClick={() =>
         trackEvent("sponsor_clicked", {
-          session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+          session_id: getOrCreateSessionId(),
           campaign_id: campaign.id,
           placement_type: placementType,
         })

@@ -1,6 +1,6 @@
-# Paatala Vela Telugu Radio
+# CassettePlay
 
-A functional single-page Telugu music radio MVP built with Next.js, TypeScript, React, Tailwind CSS, and the official YouTube IFrame Player API.
+An immersive Telugu, English and Hindi music radio built with Next.js, TypeScript, React, Tailwind CSS, and the official YouTube IFrame Player API.
 
 The app selects a channel from the current `Asia/Kolkata` time, keeps one visible YouTube player instance, and only starts playback after user interaction.
 
@@ -20,7 +20,10 @@ npm run lint
 npm run type-check
 npm run test
 npm run build
+npm run verify:playback-visibility
 ```
+
+Run the playback-visibility verifier while the local development server is available at `http://localhost:3000`.
 
 ## Environment
 
@@ -120,7 +123,8 @@ Set `YOUTUBE_API_KEY` to enable the admin “Check availability” action. Witho
 - Failed YouTube videos are skipped and tracked per channel pass to avoid infinite retries.
 - The YouTube iframe remains visible for policy compliance.
 - Supabase catalogue data is fetched once through `/api/catalogue`; song transitions use the cached browser catalogue instead of querying Supabase repeatedly.
-- Playback is deterministic. Queues are ordered by `channel_songs.sequence`, assignment `created_at`, then song ID.
+- Normal playback is deterministic. Queues are ordered by `channel_songs.sequence`, assignment `created_at`, then song ID.
+- Shuffle is listener-local and never changes database order. Its first cycle prioritizes a randomized group from the channel's last five upcoming songs, then consumes the shuffled remainder without premature repeats.
 - Scheduled live mode calculates the current song from India time, channel start time, ordered song durations, and total playlist duration.
 - Manual channel mode starts from song 1, advances sequentially, and can be reset with `Return to Live Radio`.
 - Songs without a positive duration are excluded from scheduled live positioning and shown as admin warnings.
@@ -184,3 +188,4 @@ Keep `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `ANALYTICS_INGESTION_SECRET
 - `docs/ON_DEMAND_CHANNELS.md`
 - `docs/FEEDBACK_UUID_FIX.md`
 - `docs/PHASE1_EXIT_CRITERIA.md`
+- `docs/PLAYBACK_VISIBILITY_LIFECYCLE.md`

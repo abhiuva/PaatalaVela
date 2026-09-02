@@ -27,5 +27,5 @@ export async function GET(request: NextRequest) {
   const headers = ["Submitted at", "Rating", "Rating satisfaction", "Category", "Channel", "Song", "Comment", "AI sentiment", "Confidence", "Themes", "Sentiment status", "Admin override"];
   const body = filterFeedback((data ?? []) as DbFeedbackSubmission[], filters).map((row) => [row.created_at, row.rating, satisfactionFromRating(row.rating), row.category, channelName.get(row.channel_id ?? ""), songName.get(row.song_id ?? ""), row.comment, row.sentiment_label, row.sentiment_confidence, row.detected_themes?.join(" | "), row.sentiment_status, row.admin_sentiment_override].map(escapeCsv).join(","));
   const csv = [headers.map(escapeCsv).join(","), ...body].join("\r\n");
-  return new NextResponse(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="paatalavela-feedback-${new Date().toISOString().slice(0, 10)}.csv"` } });
+  return new NextResponse(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="cassetteplay-feedback-${new Date().toISOString().slice(0, 10)}.csv"` } });
 }

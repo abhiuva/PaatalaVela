@@ -8,10 +8,14 @@ import { buildChannelQueue, getAdjacentQueueIndex, getNextQueueIndex, type Playb
 import { initialPlaybackState, playbackReducer } from "@/lib/radio/playback-state";
 import { trackRadioEvent } from "@/lib/radio/analytics";
 import { createShuffleState, nextShuffledSong, previousShuffledSong, readShufflePreference, writeShufflePreference, type ShuffleState } from "@/lib/radio/shuffle";
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "@/config/brand";
+import { readMigratedStorageValue } from "@/lib/storage/migrate";
 import type { Channel, ChannelSlug } from "@/types/radio";
+import type { PlayerVisibilitySnapshot } from "@/types/youtube";
+import { resolveLiveVisibilityDecision } from "@/lib/radio/visibility";
 
-const STORAGE_KEY = "telugu-radio.playback";
-const VOLUME_STORAGE_KEY = "telugu-radio.volume";
+const STORAGE_KEY = STORAGE_KEYS.playback;
+const VOLUME_STORAGE_KEY = STORAGE_KEYS.volume;
 const MANUAL_EXPIRY_MS = 12 * 60 * 60 * 1000;
 const BOUNDARY_GRACE_MS = 15 * 60 * 1000;
 const DRIFT_SECONDS = 5;
@@ -34,7 +38,19 @@ function readStoredPlayback(): StoredPlayback | null {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readMigratedStorageValue(
+      window.localStorage,
+      STORAGE_KEY,
+      LEGACY_STORAGE_KEYS.playback,
+      (value) => {
+        try {
+          const candidate = JSON.parse(value) as Partial<StoredPlayback>;
+          return candidate.playbackMode === "manual" && typeof (candidate.selectedManualChannelSlug ?? (candidate as { selectedManualChannelId?: unknown }).selectedManualChannelId) === "string" && typeof candidate.lastUpdatedAt === "number";
+        } catch {
+          return false;
+        }
+      },
+    );
     if (!raw) {
       return null;
     }
@@ -72,7 +88,15 @@ function readVolume() {
     return 70;
   }
 
-  const raw = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+  const raw = readMigratedStorageValue(
+    window.localStorage,
+    VOLUME_STORAGE_KEY,
+    LEGACY_STORAGE_KEYS.volume,
+    (value) => {
+      const candidate = Number(value);
+      return Number.isFinite(candidate) && candidate >= 0 && candidate <= 100;
+    },
+  );
   if (raw === null) {
     return 70;
   }
@@ -132,14 +156,18 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
+  const [resumeRequired, setResumeRequired] = useState(false);
   const currentPositionRef = useRef(0);
   const lastHandledEndedKeyRef = useRef<string | null>(null);
   const failedQueueEntryIdsRef = useRef<Set<string>>(new Set());
   const lastLiveSyncKeyRef = useRef<string | null>(null);
   const impressedChannelIdsRef = useRef<Set<string>>(new Set());
   const shuffleStateRef = useRef<ShuffleState | null>(null);
+  const recentQueueEntriesRef = useRef<{ channelKey: string; ids: string[] }>({ channelKey: "", ids: [] });
   const confirmedPlayingKeyRef = useRef<string | null>(null);
   const didRestorePlaybackRef = useRef(false);
+  const didRestoreVolumeRef = useRef(false);
+  const playerReadyRef = useRef(false);
 
   const selectedChannel = useMemo(() => getChannelBySlug(channelSlug, availableChannels), [availableChannels, channelSlug]);
   const selectedChannelReference = selectedChannel.id;
@@ -151,6 +179,13 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const song = activeQueue.items[trackIndex] ?? null;
   const nextChannel = useMemo(() => getNextChannel(selectedChannel.slug, availableChannels), [availableChannels, selectedChannel.slug]);
   const pendingScheduledSwitch = playbackMode === "live" && scheduledChannel.slug !== selectedChannel.slug;
+
+  useEffect(() => {
+    if (!song) return;
+    const channelKey = selectedChannel.id ?? selectedChannel.slug;
+    const previous = recentQueueEntriesRef.current.channelKey === channelKey ? recentQueueEntriesRef.current.ids : [];
+    recentQueueEntriesRef.current = { channelKey, ids: [...previous.filter((id) => id !== song.assignmentId), song.assignmentId].slice(-5) };
+  }, [selectedChannel.id, selectedChannel.slug, song]);
 
   useEffect(() => {
     availableChannels.forEach((channel, index) => {
@@ -182,6 +217,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       setSeekRevision((current) => current + 1);
       setFallbackReason(playable.fallbackReason);
       setAutoplayBlocked(false);
+      setResumeRequired(false);
       setPlaybackNotice(null);
       setBoundaryStartedAt(null);
       failedQueueEntryIdsRef.current = new Set();
@@ -199,7 +235,9 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     didRestorePlaybackRef.current = true;
     const timeout = window.setTimeout(() => {
       const stored = readStoredPlayback();
-      setVolume(stored?.volume ?? readVolume());
+      const restoredVolume = stored?.volume ?? readVolume();
+      didRestoreVolumeRef.current = true;
+      setVolume(restoredVolume);
       if (stored?.playbackMode === "manual" && stored.selectedManualChannelSlug) {
         const channel = availableChannels.find((item) => item.slug === stored.selectedManualChannelSlug);
         if (channel) {
@@ -233,6 +271,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   }, []);
 
   useEffect(() => {
+    if (!didRestoreVolumeRef.current) return;
     window.localStorage.setItem(VOLUME_STORAGE_KEY, String(volume));
   }, [volume]);
 
@@ -294,33 +333,6 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     }
   }, [availableChannels, listenerOffset, playbackMode, scheduledChannel.slug, syncToLive]);
 
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState !== "visible" || playbackMode !== "live" || listenerOffset) {
-        return;
-      }
-
-      const playable = findPlayableChannel(availableChannels, scheduledChannel, "live");
-      if (playable.queue.items.length === 0) {
-        return;
-      }
-      const livePosition = calculateLivePlaybackPosition({
-        currentTime: new Date(),
-        channelStartHour: playable.channel.schedule.startHour,
-        songs: playable.queue.items,
-      });
-      const currentSong = playable.queue.items[livePosition.songIndex];
-      const drift = currentSong?.id === song?.id ? Math.abs(livePosition.seekSeconds - currentPositionRef.current) : Number.POSITIVE_INFINITY;
-      if (drift > DRIFT_SECONDS) {
-        syncToLive("visibility");
-        trackRadioEvent("playback_resynchronised", { channel_id: selectedChannelReference, drift_seconds: Math.round(drift) });
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [availableChannels, listenerOffset, playbackMode, scheduledChannel, selectedChannel.slug, selectedChannelReference, song?.id, syncToLive]);
-
   const loadIndex = useCallback(
     (index: number, nextSeekSeconds = 0) => {
       const boundedIndex = activeQueue.items.length > 0 ? ((index % activeQueue.items.length) + activeQueue.items.length) % activeQueue.items.length : 0;
@@ -347,8 +359,11 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       setSeekSeconds(0);
       setSeekRevision((current) => current + 1);
       failedQueueEntryIdsRef.current = new Set();
-      shuffleStateRef.current = createShuffleState(nextChannel.id ?? nextChannel.slug, nextQueue.items, nextQueue.items[0]?.assignmentId ?? null);
+      const nextChannelKey = nextChannel.id ?? nextChannel.slug;
+      recentQueueEntriesRef.current = { channelKey: nextChannelKey, ids: [] };
+      shuffleStateRef.current = createShuffleState(nextChannelKey, nextQueue.items, nextQueue.items[0]?.assignmentId ?? null);
       setAutoplayBlocked(false);
+      setResumeRequired(false);
       setPlaybackNotice(null);
       setIsPlaying(nextQueue.items.length > 0);
       dispatch(nextQueue.items.length > 0
@@ -379,6 +394,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
 
   const togglePlayback = useCallback(() => {
     setHasUserInteracted(true);
+    setResumeRequired(false);
     setIsPlaying((current) => {
       dispatch({ type: current ? "PAUSE" : "PLAY" });
       if (current) {
@@ -412,7 +428,8 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       let nextIndex = getAdjacentQueueIndex(activeQueue.items, song?.assignmentId ?? null, direction);
       if (shuffleEnabled && activeQueue.items.length > 1) {
         const channelKey = selectedChannel.id ?? selectedChannel.slug;
-        const state = shuffleStateRef.current ?? createShuffleState(channelKey, activeQueue.items, song?.assignmentId ?? null);
+        const recentIds = recentQueueEntriesRef.current.channelKey === channelKey ? recentQueueEntriesRef.current.ids : [];
+        const state = shuffleStateRef.current ?? createShuffleState(channelKey, activeQueue.items, song?.assignmentId ?? null, Math.random, recentIds);
         const result = direction === 1
           ? nextShuffledSong(state, channelKey, activeQueue.items, song?.assignmentId ?? null)
           : previousShuffledSong(state, activeQueue.items, song?.assignmentId ?? null);
@@ -431,21 +448,25 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
 
   const toggleShuffle = useCallback(() => {
     if (activeQueue.items.length <= 1) return;
-    setShuffleEnabled((current) => {
-      const enabled = !current;
-      writeShufflePreference(window.localStorage, enabled);
-      if (enabled) {
-        shuffleStateRef.current = createShuffleState(selectedChannel.id ?? selectedChannel.slug, activeQueue.items, song?.assignmentId ?? null);
-      }
-      trackRadioEvent("shuffle_mode_changed", {
-        channel_id: selectedChannelReference,
-        channel_slug: selectedChannel.slug,
-        previous_mode: current ? "shuffle" : "normal",
-        new_mode: enabled ? "shuffle" : "normal",
-      });
-      return enabled;
+    const enabled = !shuffleEnabled;
+    writeShufflePreference(window.localStorage, enabled);
+    if (enabled) {
+      const channelKey = selectedChannel.id ?? selectedChannel.slug;
+      const recentIds = recentQueueEntriesRef.current.channelKey === channelKey ? recentQueueEntriesRef.current.ids : [];
+      shuffleStateRef.current = createShuffleState(channelKey, activeQueue.items, song?.assignmentId ?? null, Math.random, recentIds);
+      setPlaybackNotice("Upcoming songs shuffled");
+    } else {
+      shuffleStateRef.current = null;
+      setPlaybackNotice(null);
+    }
+    setShuffleEnabled(enabled);
+    trackRadioEvent("shuffle_mode_changed", {
+      channel_id: selectedChannelReference,
+      channel_slug: selectedChannel.slug,
+      previous_mode: shuffleEnabled ? "shuffle" : "normal",
+      new_mode: enabled ? "shuffle" : "normal",
     });
-  }, [activeQueue.items, selectedChannel.id, selectedChannel.slug, selectedChannelReference, song?.assignmentId]);
+  }, [activeQueue.items, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song?.assignmentId]);
 
   const handleEnded = useCallback(() => {
     if (!song) {
@@ -508,7 +529,8 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
         if (shuffleEnabled) {
           const eligible = activeQueue.items.filter((item) => !failedQueueEntryIdsRef.current.has(item.assignmentId));
           const channelKey = selectedChannel.id ?? selectedChannel.slug;
-          const state = shuffleStateRef.current ?? createShuffleState(channelKey, eligible, song.assignmentId);
+          const recentIds = recentQueueEntriesRef.current.channelKey === channelKey ? recentQueueEntriesRef.current.ids : [];
+          const state = shuffleStateRef.current ?? createShuffleState(channelKey, eligible, song.assignmentId, Math.random, recentIds);
           const result = nextShuffledSong(state, channelKey, eligible, song.assignmentId);
           shuffleStateRef.current = result.state;
           const shuffledIndex = activeQueue.items.findIndex((item) => item.assignmentId === result.nextId);
@@ -523,16 +545,19 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   }, [activeQueue.items, loadIndex, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song, trackIndex]);
 
   const handlePlayerReady = useCallback(() => {
+    if (playerReadyRef.current) return;
+    playerReadyRef.current = true;
     dispatch({ type: "PLAYER_READY" });
   }, []);
 
   const handlePlaybackStarted = useCallback((videoId: string) => {
     if (!song || song.youtubeVideoId !== videoId) return;
     setAutoplayBlocked(false);
+    setResumeRequired(false);
     setPlaybackNotice(null);
     setIsPlaying(true);
     dispatch({ type: "PLAY" });
-    const key = `${selectedChannel.id ?? selectedChannel.slug}:${song.assignmentId}:${seekRevision}`;
+    const key = `${selectedChannel.id ?? selectedChannel.slug}:${song.assignmentId}`;
     if (confirmedPlayingKeyRef.current === key) return;
     confirmedPlayingKeyRef.current = key;
     trackRadioEvent("song_started", {
@@ -544,14 +569,48 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       language_code: selectedChannel.languageCode,
       channel_mode: selectedChannel.mode,
     });
-  }, [playbackMode, seekRevision, selectedChannel, selectedChannelReference, song]);
+  }, [playbackMode, selectedChannel, selectedChannelReference, song]);
 
   const handleAutoplayBlocked = useCallback(() => {
     if (!isPlaying) return;
     setIsPlaying(false);
     setAutoplayBlocked(true);
+    setResumeRequired(false);
     dispatch({ type: "PAUSE" });
   }, [isPlaying]);
+
+  const handleResumeBlocked = useCallback(() => {
+    if (!isPlaying) return;
+    setIsPlaying(false);
+    setAutoplayBlocked(true);
+    setResumeRequired(true);
+    setPlaybackNotice("Tap to resume");
+    dispatch({ type: "PAUSE" });
+  }, [isPlaying]);
+
+  const handleVisibilityResume = useCallback((snapshot: PlayerVisibilitySnapshot) => {
+    if (Number.isFinite(snapshot.positionSeconds)) currentPositionRef.current = Math.max(0, snapshot.positionSeconds);
+    if (playbackMode !== "live" || listenerOffset || !song) return true;
+
+    const decision = resolveLiveVisibilityDecision({
+      scheduledChannel,
+      selectedChannel,
+      currentQueueEntryId: song.assignmentId,
+      currentPositionSeconds: snapshot.positionSeconds,
+      currentTime: new Date(),
+      driftToleranceSeconds: DRIFT_SECONDS,
+    });
+    if (decision.type === "switch") {
+      syncToLive("visibility");
+      return false;
+    }
+    if (decision.type === "seek") {
+      setSeekSeconds(decision.seekSeconds);
+      setSeekRevision((current) => current + 1);
+      trackRadioEvent("playback_resynchronised", { channel_id: selectedChannelReference, drift_seconds: Math.round(decision.driftSeconds) });
+    }
+    return true;
+  }, [listenerOffset, playbackMode, scheduledChannel, selectedChannel, selectedChannelReference, song, syncToLive]);
 
   const handlePositionChange = useCallback(
     (positionSeconds: number) => {
@@ -597,6 +656,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     playbackConfirmed: playbackState.status === "playing",
     playbackNotice,
     autoplayBlocked,
+    resumeRequired,
     shuffleEnabled,
     shuffleAvailable: activeQueue.items.length > 1,
     manualChannelSlug: playbackMode === "manual" ? selectedChannel.slug : null,
@@ -615,6 +675,8 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     handlePlayerReady,
     handlePlaybackStarted,
     handleAutoplayBlocked,
+    handleResumeBlocked,
+    handleVisibilityResume,
     handlePositionChange,
   };
 }

@@ -2,7 +2,7 @@
 
 | Criterion | Status | Evidence or blocker |
 | --- | --- | --- |
-| Brand decision approved and applied | Blocked | No approved replacement name or tagline; Paatala Vela preserved. |
+| Brand decision approved and applied | Implemented | `CassettePlay` was approved on 2026-09-01 and applied through centralized configuration to active public/admin UI, metadata, manifest, social, API and documentation surfaces. |
 | Taxonomy schema and admin controls | Implemented | Migration, typed models, manual/edit/YouTube controls, and tests are complete. |
 | Existing catalogue backfilled | Implemented with editorial review pending | 94/94 language and era; 43/94 mood and occasion; 51 English songs intentionally await subjective tagging. |
 | Remove one channel relationship | Implemented | Confirmed service-only transactional unlink with audit event. |
@@ -13,13 +13,16 @@
 | Honest adaptive wording | Implemented | Configurable thresholds and unavailable state; no fabricated counts. |
 | Six Telugu schedules unchanged | Implemented | Schedule utility still filters only scheduled channels; boundary tests pass. |
 | English Hits remains on demand | Implemented | Existing UUID and mode migration preserved. |
-| Hindi Hits launches on demand | Implemented | UUID-backed empty channel and language/availability triggers are live; no songs fabricated. |
+| Hindi Hits launches on demand | Implemented | UUID-backed on-demand channel, language/availability triggers and current verified database catalogue are live; no songs were fabricated by this implementation. |
 | Language analytics reconcile | Implemented | New events/dimensions, DB event constraint, and admin language/mode reports are live and tested. |
 | Feedback UUID handling | Complete | Valid, null, omitted, malformed, slug, unknown, insert, and general-feedback tests pass. |
-| Type-check, lint, tests, build | Pass | Type-check, lint, 206 tests, and the Next.js 16.3.1 production build pass. |
+| Type-check, lint, tests, build | Pass | Type-check, lint, 243 tests across 37 files, and the Next.js 16.3.1 production build pass. |
 | Channel sequence integrity | Implemented | 105 rows reconciled; zero collisions/null/non-positive values; reversible mapping and scoped constraints are live. |
 | Atomic admin import | Implemented | Video/playlist imports use one locked transaction with idempotent existing-song outcomes and safe staged errors. |
 | Stable playback navigation | Implemented | Assignment UUID identity, shared manual/automatic advance, five-transition parity, wrap and duplicate-ended tests pass. |
+| Effective shuffle and English parity | Implemented | Tail-first randomized first cycle, Fisher-Yates later cycles, no premature repeat, shared manual/automatic advancement and UUID-isolated English queue are tested. |
+| Legacy browser preferences preserved | Implemented | Valid playback, volume, shuffle, consent and anonymous-session values migrate to versioned CassettePlay keys; invalid values remain untouched. |
+| Playback survives tab visibility changes | Implemented with Safari verification pending | Stable player/assignment identity, idempotent load and seek handling, scheduled drift recovery, on-demand/shuffle preservation, blocked-resume UI, analytics deduplication, and 30-second Chromium lifecycle checks pass. Local WebKit and physical iPhone were unavailable. |
 
 ## User-approved Additions
 
@@ -35,3 +38,8 @@
 - [x] Suprabhata, Tea Shop, Prema, and all other active channels have unique contiguous active sequences.
 - [x] Automatic and manual Next share one tested queue-advance function.
 - [x] Sequence repair backup and rollback mapping are retained in Supabase.
+- [x] CassettePlay is the exact displayed name across active listener, admin, metadata, manifest and user-facing backend surfaces.
+- [x] English Hits uses the shared shuffle implementation and cannot inherit another channel's queue.
+- [x] Normal visibility return preserves the current player, iframe, assignment, position, queue and shuffle cycle without duplicate playback analytics.
+- [x] Browser suspension recovery preserves media identity and shows `Tap to resume` when automatic resumption is blocked.
+- [ ] Safari desktop and physical Safari/iPhone visibility behavior require manual verification on available devices.

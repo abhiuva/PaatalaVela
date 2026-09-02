@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono, Noto_Sans_Telugu } from "next/font/google";
 import "./globals.css";
+import { BRAND } from "@/config/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,21 +21,23 @@ const notoTelugu = Noto_Sans_Telugu({
 });
 
 export const metadata: Metadata = {
-  title: "Paatala Vela Telugu Radio",
-  description: "A time-aware Telugu music radio MVP powered by the official YouTube IFrame Player API.",
+  applicationName: BRAND.name,
+  title: { default: BRAND.name, template: `%s | ${BRAND.name}` },
+  description: BRAND.description,
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   keywords: ["Telugu music", "Telugu radio", "తెలుగు పాటలు", "scheduled radio", "YouTube music discovery"],
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Paatala Vela Telugu Radio",
-    description: "A curated Telugu radio-style listening experience scheduled by India time.",
+    title: BRAND.name,
+    description: BRAND.description,
+    siteName: BRAND.name,
     type: "website",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Paatala Vela Telugu Radio",
-    description: "Curated Telugu music by mood and India time.",
+    title: BRAND.name,
+    description: BRAND.description,
   },
   manifest: "/manifest.webmanifest",
   robots: { index: true, follow: true },

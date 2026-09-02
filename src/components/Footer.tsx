@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ConsentSettings } from "@/components/privacy/ConsentSettings";
+import { BRAND } from "@/config/brand";
 
 export function Footer() {
   return (
@@ -8,7 +9,7 @@ export function Footer() {
         <div className="grid gap-5 sm:grid-cols-2">
           <section aria-labelledby="footer-product">
             <h2 id="footer-product" className="text-sm font-black text-white">Curated Telugu radio by mood and time</h2>
-            <p className="mt-2 max-w-md">Paatala Vela follows India time with editorially ordered Telugu music for each part of the day.</p>
+            <p className="mt-2 max-w-md">{BRAND.name} follows India time with editorially ordered music and on-demand language channels.</p>
           </section>
           <section aria-labelledby="footer-rights">
             <h2 id="footer-rights" className="text-sm font-black text-white">Playback and rights</h2>

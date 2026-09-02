@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { trackEvent } from "@/lib/analytics/client";
+import { getOrCreateSessionId, trackEvent } from "@/lib/analytics/client";
 
 type SubmitState =
   | { status: "idle" }
@@ -13,7 +13,7 @@ export function TakedownForm() {
   const [state, setState] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
-    trackEvent("takedown_form_opened", { session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset" });
+    trackEvent("takedown_form_opened", { session_id: getOrCreateSessionId() });
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {

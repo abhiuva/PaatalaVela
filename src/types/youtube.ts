@@ -16,9 +16,17 @@ export type YTPlayer = {
   stopVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
+  getPlayerState?: () => number;
   getVideoData?: () => { video_id?: string };
   setVolume: (volume: number) => void;
   destroy: () => void;
+};
+
+export type PlayerVisibilitySnapshot = {
+  queueEntryId: string | null;
+  videoId: string | null;
+  positionSeconds: number;
+  playerState: number | null;
 };
 
 export type YTConstructor = new (

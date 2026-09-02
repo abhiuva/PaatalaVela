@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import { BRAND } from "@/config/brand";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { analyseStoredFeedback } from "@/lib/feedback/service";
 import { consumeRateLimit } from "@/lib/feedback/rate-limit";
@@ -85,5 +86,5 @@ export async function POST(request: Request) {
     await analyseStoredFeedback(supabase, data.id, parsed.data.comment!);
   }
 
-  return NextResponse.json({ ok: true, message: "Thank you for helping improve Paatala Vela." });
+  return NextResponse.json({ ok: true, message: `Thank you for helping improve ${BRAND.name}.` });
 }

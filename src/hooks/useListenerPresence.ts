@@ -2,12 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import { presenceConfig } from "@/lib/presence/config";
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "@/config/brand";
+import { readMigratedStorageValue } from "@/lib/storage/migrate";
 
-const SESSION_KEY = "paatalavela.presence-session";
+const SESSION_KEY = STORAGE_KEYS.presenceSession;
 const HIDDEN_PAUSE_MS = 60_000;
 
 function browserSessionId() {
-  const existing = window.localStorage.getItem(SESSION_KEY);
+  const existing = readMigratedStorageValue(
+    window.localStorage,
+    SESSION_KEY,
+    LEGACY_STORAGE_KEYS.presenceSession,
+    (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+  );
   if (existing) return existing;
   const created = crypto.randomUUID();
   window.localStorage.setItem(SESSION_KEY, created);
@@ -28,6 +35,7 @@ export function useListenerPresence({ isPlaying, hasUserInteracted, channelSlug,
     if (!hasUserInteracted) return;
     const sessionId = browserSessionId();
     let hiddenTimer: number | undefined;
+    let lastVisibilityState = document.visibilityState;
 
     const payload = (playerState: "playing" | "paused" | "stopped") => JSON.stringify({ sessionId, channelSlug, songId: songId ?? null, playerState });
     const send = async (playerState: "playing" | "paused" | "stopped") => {
@@ -45,6 +53,8 @@ export function useListenerPresence({ isPlaying, hasUserInteracted, channelSlug,
       activeRef.current = false;
     };
     const onVisibility = () => {
+      if (document.visibilityState === lastVisibilityState) return;
+      lastVisibilityState = document.visibilityState;
       if (document.visibilityState === "hidden" && activeRef.current) {
         hiddenTimer = window.setTimeout(() => { void send("paused"); activeRef.current = false; }, HIDDEN_PAUSE_MS);
       } else if (document.visibilityState === "visible") {

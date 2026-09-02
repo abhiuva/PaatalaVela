@@ -1,6 +1,8 @@
 "use client";
 
 import type { AnalyticsEventName } from "@/types/database";
+import { BRAND, LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "@/config/brand";
+import { readMigratedStorageValue } from "@/lib/storage/migrate";
 
 export type AnalyticsConsent = "unknown" | "accepted" | "rejected";
 export type AnalyticsProperties = Record<string, string | number | boolean | null | undefined>;
@@ -9,14 +11,19 @@ export type AnalyticsProvider = {
   track: (eventName: AnalyticsEventName, properties: AnalyticsProperties) => void;
 };
 
-const CONSENT_KEY = "telugu-radio.analytics-consent";
+const CONSENT_KEY = STORAGE_KEYS.analyticsConsent;
 let provider: AnalyticsProvider = { track: () => undefined };
 
 export function getAnalyticsConsent(): AnalyticsConsent {
   if (typeof window === "undefined") {
     return "unknown";
   }
-  const value = window.localStorage.getItem(CONSENT_KEY);
+  const value = readMigratedStorageValue(
+    window.localStorage,
+    CONSENT_KEY,
+    LEGACY_STORAGE_KEYS.analyticsConsent,
+    (candidate) => candidate === "accepted" || candidate === "rejected",
+  );
   return value === "accepted" || value === "rejected" ? value : "unknown";
 }
 
@@ -81,15 +88,28 @@ export function initialiseAnalytics() {
 
 export function trackEvent(eventName: AnalyticsEventName, properties: AnalyticsProperties = {}) {
   try {
-    provider.track(eventName, properties);
+    provider.track(eventName, { app_name: BRAND.name, ...properties });
   } catch {
     // Analytics must never affect radio playback.
   }
 }
 
 export function getOrCreateSessionId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `session_${crypto.randomUUID()}`;
+  if (typeof window !== "undefined") {
+    const existing = readMigratedStorageValue(
+      window.sessionStorage,
+      STORAGE_KEYS.browserSession,
+      LEGACY_STORAGE_KEYS.browserSession,
+      (value) => /^session_[A-Za-z0-9_-]+$/.test(value),
+    );
+    if (existing) return existing;
   }
-  return `session_${Date.now().toString(36)}`;
+  let created: string;
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    created = `session_${crypto.randomUUID()}`;
+  } else {
+    created = `session_${Date.now().toString(36)}`;
+  }
+  if (typeof window !== "undefined") window.sessionStorage.setItem(STORAGE_KEYS.browserSession, created);
+  return created;
 }

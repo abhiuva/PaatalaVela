@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getAdminContext } from "@/lib/admin/auth";
 import { logoutAction } from "@/app/admin/actions";
+import { BRAND } from "@/config/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
             <Link href="/admin" className="text-lg font-black focus:outline-none focus:ring-2 focus:ring-white">
-              Telugu Radio Admin
+              {BRAND.name} Admin
             </Link>
             <p className="text-xs text-white/55">{context.profile.display_name} · {context.profile.role}</p>
           </div>

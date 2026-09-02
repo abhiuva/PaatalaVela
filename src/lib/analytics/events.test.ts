@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { completionRate, validateAnalyticsEvent } from "@/lib/analytics/events";
 import { getAnalyticsConsent, initialiseAnalytics, setAnalyticsConsent, trackEvent } from "@/lib/analytics/client";
 import { resolveChannelReference } from "@/lib/analytics/channel-reference";
+import { BRAND } from "@/config/brand";
 
 describe("analytics validation", () => {
   it("resolves public channel slugs to database UUIDs for daily metrics", async () => {
@@ -94,5 +95,9 @@ describe("analytics consent", () => {
     trackEvent("schedule_viewed", { session_id: "session_1" });
     expect(getAnalyticsConsent()).toBe("accepted");
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("uses the centralized application name", () => {
+    expect(BRAND.name).toBe("CassettePlay");
   });
 });

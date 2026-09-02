@@ -9,6 +9,7 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "verify:playback-visibility": "node scripts/verify-playback-visibility-browser.mjs",
     "supabase:verify": "node scripts/verify-supabase-setup.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
     "admin:reset-password": "node scripts/reset-admin-password.mjs",

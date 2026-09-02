@@ -77,8 +77,7 @@ export function FeedbackButton({ channelId, songId, appVersion }: Props) {
     setState("submitting");
     setMessage("");
     try {
-      const sessionId = window.sessionStorage.getItem("telugu-radio-session") ?? getOrCreateSessionId();
-      window.sessionStorage.setItem("telugu-radio-session", sessionId);
+      const sessionId = getOrCreateSessionId();
       const response = await fetch("/api/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },

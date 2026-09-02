@@ -28,3 +28,9 @@ Scheduled channel changes still finish the current song before returning to the 
 - `Song unavailable, trying next.`: bounded player-error recovery is in progress.
 - `No verified songs available.`: the selected verified queue is empty or exhausted.
 - `Unable to load channel. Retry`: selected-channel refresh failed without changing the selected channel.
+
+## Visibility And Suspension
+
+Tab visibility is not a playback initialization signal. The player load identity is the stable assignment UUID plus video ID, independent of seek revision and mutable catalogue object identity. A normally playing tab return sends no player command. Scheduled recovery ignores drift up to five seconds, seeks the same assignment without reloading when drift is material, and loads only when the authoritative scheduled assignment genuinely changed. On-demand recovery retains assignment, queue index, shuffle cycle, and last position. A suspended player receives one resume attempt; browser-policy refusal preserves the entry and shows `Tap to resume`.
+
+Presence and listener-count refresh remain independent from player state. Details and browser evidence are in `PLAYBACK_VISIBILITY_LIFECYCLE.md`.

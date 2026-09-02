@@ -1,4 +1,4 @@
-import { trackEvent } from "@/lib/analytics/client";
+import { getOrCreateSessionId, trackEvent } from "@/lib/analytics/client";
 import { isUuid } from "@/lib/validation/uuid";
 import type { AnalyticsEventName } from "@/types/database";
 
@@ -33,7 +33,7 @@ export function trackRadioEvent(event: keyof typeof eventMap, properties: Record
 
   try {
     trackEvent(eventMap[event], {
-      session_id: window.sessionStorage.getItem("telugu-radio-session") ?? "session_unset",
+      session_id: getOrCreateSessionId(),
       ...properties,
     });
   } catch {

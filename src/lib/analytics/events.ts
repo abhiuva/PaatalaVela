@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AnalyticsEventName } from "@/types/database";
+import { BRAND } from "@/config/brand";
 
 export const analyticsEventNames = [
   "radio_session_started",
@@ -35,6 +36,7 @@ const deviceCategory = z.enum(["mobile", "tablet", "desktop"]);
 
 const base = z.object({
   session_id: safeId,
+  app_name: z.literal(BRAND.name).optional(),
   language_code: z.string().trim().min(2).max(8).optional(),
   channel_mode: z.enum(["scheduled", "on_demand"]).optional(),
 });
