@@ -39,9 +39,14 @@ NEXT_PUBLIC_POSTHOG_KEY=
 NEXT_PUBLIC_POSTHOG_HOST=
 ANALYTICS_INGESTION_SECRET=
 ANALYTICS_RETENTION_DAYS=90
+MOOD_AI_API_URL=
+MOOD_AI_API_KEY=
+MOOD_AI_MODEL=
 ```
 
 The public radio renders without Supabase by using local fallback data. Admin, takedown storage, song requests, pilot feedback, sponsorship storage, aggregate analytics and YouTube availability checks require Supabase. `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `SENTIMENT_API_KEY` and `ANALYTICS_INGESTION_SECRET` are server-only secrets; never expose them in browser code or commit real values.
+
+Mood Assistant uses the optional server-only `MOOD_AI_*` variables for intent interpretation and falls back to deterministic parsing when they are absent or unavailable. Verified playlist retrieval always requires Supabase; no catalogue dump is sent to the provider.
 
 ## Supabase Setup
 
@@ -128,6 +133,7 @@ Set `YOUTUBE_API_KEY` to enable the admin “Check availability” action. Witho
 - Scheduled live mode calculates the current song from India time, channel start time, ordered song durations, and total playlist duration.
 - Manual channel mode starts from song 1, advances sequentially, and can be reset with `Return to Live Radio`.
 - Songs without a positive duration are excluded from scheduled live positioning and shown as admin warnings.
+- Mood Assistant creates a session-only queue from active, available Supabase songs and reuses the existing visible YouTube player. Playback starts only after the listener selects Play, refinement avoids completed songs, and Return to Live Radio restores scheduled playback.
 
 ## Deployment
 
@@ -159,6 +165,9 @@ NEXT_PUBLIC_POSTHOG_HOST
 NEXT_PUBLIC_APP_VERSION
 SUPABASE_SERVICE_ROLE_KEY
 YOUTUBE_API_KEY
+MOOD_AI_API_URL
+MOOD_AI_API_KEY
+MOOD_AI_MODEL
 ANALYTICS_INGESTION_SECRET
 ANALYTICS_RETENTION_DAYS
 SENTIMENT_API_URL
@@ -189,3 +198,4 @@ Keep `SUPABASE_SERVICE_ROLE_KEY`, `YOUTUBE_API_KEY`, `ANALYTICS_INGESTION_SECRET
 - `docs/FEEDBACK_UUID_FIX.md`
 - `docs/PHASE1_EXIT_CRITERIA.md`
 - `docs/PLAYBACK_VISIBILITY_LIFECYCLE.md`
+- `docs/MOOD_ASSISTANT.md`

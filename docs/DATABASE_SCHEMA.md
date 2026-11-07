@@ -9,6 +9,10 @@ Migrations live in `supabase/migrations`.
 - `channel_songs`: channel-song assignments with sequence, weight, and active flag. Duplicate assignments in the same channel are prevented.
 - `admin_profiles`: links `auth.users` to an active `admin` or `editor` role.
 - `takedown_requests`: private rights-review submissions with status and internal notes.
+- `content_energy_levels`, `content_valences`, and `content_regions`: controlled Mood Assistant taxonomy.
+- `song_regions`: optional song-to-region affinities.
+- `song_classification_suggestions`: private administrator/editor review queue for unapproved AI suggestions.
+- `mood_assistant_generations`: privacy-safe generation status, intent facets, counts, and timing metrics; it never stores raw listener text.
 
 ## Availability Status
 
@@ -27,6 +31,8 @@ Only active songs with `embed_status = available` are exposed through public Sup
 Anonymous users may read active channels, active available songs, and active channel-song assignments. Anonymous users may insert takedown requests but cannot read them.
 
 Active admins and editors may read, insert, and update catalogue and takedown records. Permanent delete policies require the `admin` role.
+
+Mood candidate retrieval is exposed only through the service-role `get_mood_assistant_candidates` RPC. Anonymous and authenticated browser roles cannot execute it. Classification suggestions and generation records have no public read policy.
 
 ## Seed Data
 

@@ -10,6 +10,7 @@ const feedbackMigration = readFileSync(path.join(process.cwd(), "supabase/migrat
 const presenceMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260818143000_sprint6_1_active_listeners.sql"), "utf8");
 const englishCleanupMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260819120000_add_english_hits_cleanup_placeholders.sql"), "utf8");
 const phase1Migration = readFileSync(path.join(process.cwd(), "supabase/migrations/20260822203000_phase1_content_platform.sql"), "utf8");
+const moodAssistantMigration = readFileSync(path.join(process.cwd(), "supabase/migrations/20261012120000_mood_assistant.sql"), "utf8");
 const repository = readFileSync(path.join(process.cwd(), "src/lib/catalogue/repository.ts"), "utf8");
 const remoteCatalogue = readFileSync(path.join(process.cwd(), "src/lib/catalogue/remote.ts"), "utf8");
 const feedbackActions = readFileSync(path.join(process.cwd(), "src/app/admin/(protected)/analytics/actions.ts"), "utf8");
@@ -133,5 +134,23 @@ describe("RLS migration", () => {
     expect(phase1Migration).toContain("daily_tuned_listener_count");
     expect(phase1Migration).toContain("count(distinct anonymous_session_id)");
     expect(phase1Migration).toContain("grant execute on function public.daily_tuned_listener_count(date) to service_role");
+  });
+
+  it("keeps Mood Assistant generations and AI suggestions private", () => {
+    for (const table of ["song_classification_suggestions", "mood_assistant_generations"]) {
+      expect(moodAssistantMigration).toContain(`alter table public.${table} enable row level security`);
+    }
+    expect(moodAssistantMigration).not.toContain("Public read mood_assistant_generations");
+    expect(moodAssistantMigration).not.toContain("Public read song_classification_suggestions");
+    expect(moodAssistantMigration).toContain("Editors review classification suggestions");
+    expect(moodAssistantMigration).toContain("classification_source <> 'AI-suggested'");
+  });
+
+  it("limits verified candidate retrieval to the service role", () => {
+    expect(moodAssistantMigration).toContain("song.embed_status = 'available'");
+    expect(moodAssistantMigration).toContain("song.youtube_video_id ~ '^[A-Za-z0-9_-]{11}$'");
+    expect(moodAssistantMigration).toContain("revoke all on function public.get_mood_assistant_candidates");
+    expect(moodAssistantMigration).toContain("grant execute on function public.get_mood_assistant_candidates");
+    expect(moodAssistantMigration).toContain("to service_role");
   });
 });

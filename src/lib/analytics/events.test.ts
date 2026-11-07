@@ -69,6 +69,26 @@ describe("analytics validation", () => {
       new_mode: "shuffle",
     }).ok).toBe(true);
   });
+
+  it("accepts privacy-safe Mood Assistant metrics", () => {
+    expect(validateAnalyticsEvent("mood_playlist_generated", {
+      session_id: "session_1",
+      generation_id: "40000000-0000-4000-8000-000000000001",
+      playlist_size: 12,
+      playlist_duration_seconds: 2700,
+      total_ms: 420,
+      provider_mode: "fallback",
+    }).ok).toBe(true);
+  });
+
+  it("rejects raw Mood Assistant listener text", () => {
+    expect(validateAnalyticsEvent("mood_request_submitted", {
+      session_id: "session_1",
+      has_duration_target: true,
+      has_song_count_target: false,
+      raw_message: "I am going through a breakup",
+    }).ok).toBe(false);
+  });
 });
 
 describe("analytics consent", () => {

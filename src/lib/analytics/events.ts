@@ -28,10 +28,20 @@ export const analyticsEventNames = [
   "channel_selected",
   "listening_duration_recorded",
   "shuffle_mode_changed",
+  "mood_assistant_opened",
+  "mood_request_submitted",
+  "mood_clarification_requested",
+  "mood_playlist_generated",
+  "mood_playlist_started",
+  "mood_playlist_refined",
+  "mood_playlist_empty",
+  "mood_provider_fallback",
+  "mood_generation_failed",
+  "assistant_song_skipped",
 ] as const satisfies readonly AnalyticsEventName[];
 
 const safeId = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/);
-const playbackMode = z.enum(["live", "manual"]);
+const playbackMode = z.enum(["live", "manual", "assistant", "youtube_live"]);
 const deviceCategory = z.enum(["mobile", "tablet", "desktop"]);
 
 const base = z.object({
@@ -113,9 +123,28 @@ export const eventSchemas = {
     previous_mode: z.enum(["normal", "shuffle"]),
     new_mode: z.enum(["normal", "shuffle"]),
   }),
+  mood_assistant_opened: base,
+  mood_request_submitted: base.extend({
+    has_duration_target: z.boolean(),
+    has_song_count_target: z.boolean(),
+  }),
+  mood_clarification_requested: base.extend({ generation_id: safeId }),
+  mood_playlist_generated: base.extend({
+    generation_id: safeId,
+    playlist_size: z.coerce.number().int().min(0).max(50),
+    playlist_duration_seconds: z.coerce.number().int().min(0).max(24 * 60 * 60),
+    total_ms: z.coerce.number().int().min(0).max(60_000),
+    provider_mode: z.enum(["provider", "fallback"]),
+  }),
+  mood_playlist_started: base.extend({ generation_id: safeId, playlist_size: z.coerce.number().int().min(1).max(50) }),
+  mood_playlist_refined: base.extend({ generation_id: safeId, previous_size: z.coerce.number().int().min(0).max(100), new_size: z.coerce.number().int().min(0).max(50), retained_current: z.boolean() }),
+  mood_playlist_empty: base.extend({ generation_id: safeId }),
+  mood_provider_fallback: base.extend({ generation_id: safeId }),
+  mood_generation_failed: base.extend({ error_code: safeId }),
+  assistant_song_skipped: base.extend({ generation_id: safeId, song_id: safeId, reason: z.enum(["next", "player_error"]) }),
 } satisfies Record<AnalyticsEventName, z.ZodType>;
 
-const blockedPersonalFields = ["email", "claimant", "claimant_email", "name", "song_title", "singer", "youtube_url", "user_agent", "supabase_user_id"];
+const blockedPersonalFields = ["email", "claimant", "claimant_email", "name", "song_title", "singer", "youtube_url", "user_agent", "supabase_user_id", "message", "raw_message", "listener_message", "situation"];
 
 export function validateAnalyticsEvent(eventName: string, properties: unknown) {
   if (!analyticsEventNames.includes(eventName as AnalyticsEventName)) {

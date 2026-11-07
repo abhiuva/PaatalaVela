@@ -1,6 +1,6 @@
 # Content Taxonomy
 
-Phase 1 adds controlled language, era, mood, and occasion metadata through `20260822203000_phase1_content_platform.sql`.
+Phase 1 adds controlled language, era, mood, and occasion metadata through `20260822203000_phase1_content_platform.sql`. Mood Assistant extends this model through `20261012120000_mood_assistant.sql`.
 
 ## Contract
 
@@ -9,6 +9,10 @@ Phase 1 adds controlled language, era, mood, and occasion metadata through `2026
 - Language values are `te`, `en`, `hi`, `ta`, and `ml`.
 - Era values are `pre-1980`, `1980s`, `1990s`, `2000s`, `2010s`, and `2020s`.
 - Mood and occasion options are controlled rows, not administrator-entered free text.
+- Mood values include `happy`, `sad`, `breakup`, `romantic`, `nostalgic`, `peaceful`, `devotional`, `energetic`, `celebratory`, `reflective`, `melancholic`, and `uplifting`.
+- Occasion values include `rain`, `driving`, `party`, `work`, `workout`, `sleep`, `morning`, `evening`, `late-night`, `prayer`, `celebration`, and `tea-time`.
+- Energy is controlled as `low`, `medium`, or `high`; valence is `negative`, `neutral`, or `positive`.
+- Region affinity is optional and many-to-many through `song_regions`.
 - `song_story` is optional and limited to 320 characters. `context` is optional and limited to 240 characters.
 
 The primary admin form requires title, film, year, duration, singers, composer, YouTube source, language, and era. Story, context, moods, and occasions are optional. Legacy links, lyricist, translated title, and editorial notes remain under advanced fields and are not removed.
@@ -18,6 +22,10 @@ The primary admin form requires title, film, year, duration, singers, composer, 
 The migration assigns English to songs already linked to English Hits and Telugu to other existing songs. Era is derived deterministically from `release_year`. Existing Telugu channel assignments seed mood and occasion candidates using explicit channel mappings. English songs receive no subjective mood or occasion automatically.
 
 After migration, run `npm run catalogue:audit`. Review subjective tags and questionable release metadata in Admin before treating the backfill as editorially approved.
+
+## Classification Provenance
+
+Song intelligence records its confidence, source, and review state. Sources are `editorial`, `AI-suggested`, and `admin-approved`. AI suggestions never become editorially approved automatically: new or low-confidence suggestions enter `song_classification_suggestions` and remain private under RLS until an active administrator or editor reviews them. Mood Assistant reads approved catalogue intelligence and does not classify songs during listener requests.
 
 ## Rollback
 

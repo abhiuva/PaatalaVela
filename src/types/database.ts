@@ -26,7 +26,17 @@ export type AnalyticsEventName =
   | "channel_impression"
   | "channel_selected"
   | "listening_duration_recorded"
-  | "shuffle_mode_changed";
+  | "shuffle_mode_changed"
+  | "mood_assistant_opened"
+  | "mood_request_submitted"
+  | "mood_clarification_requested"
+  | "mood_playlist_generated"
+  | "mood_playlist_started"
+  | "mood_playlist_refined"
+  | "mood_playlist_empty"
+  | "mood_provider_fallback"
+  | "mood_generation_failed"
+  | "assistant_song_skipped";
 export type SponsorPlacementType = "homepage" | "channel" | "now_playing" | "schedule" | "footer";
 export type SponsorCampaignStatus = "draft" | "scheduled" | "active" | "paused" | "completed";
 export type SongRequestStatus = "new" | "reviewing" | "accepted" | "rejected" | "duplicate";
@@ -37,6 +47,10 @@ export type SentimentStatus = "pending" | "processing" | "completed" | "failed" 
 export type SentimentLabel = "positive" | "neutral" | "negative" | "mixed";
 export type ListenerPlayerState = "playing" | "paused" | "stopped";
 export type ChannelMode = "scheduled" | "on_demand";
+export type EnergyCode = "low" | "medium" | "high";
+export type ValenceCode = "negative" | "neutral" | "positive";
+export type ClassificationSource = "editorial" | "AI-suggested" | "admin-approved";
+export type ClassificationReviewStatus = "unclassified" | "pending" | "approved" | "rejected";
 
 export type Database = {
   public: {
@@ -109,6 +123,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["content_occasions"]["Insert"]>;
         Relationships: [];
       };
+      content_energy_levels: {
+        Row: { code: EnergyCode; name: string; display_order: number; active: boolean };
+        Insert: { code: EnergyCode; name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_energy_levels"]["Insert"]>;
+        Relationships: [];
+      };
+      content_valences: {
+        Row: { code: ValenceCode; name: string; display_order: number; active: boolean };
+        Insert: { code: ValenceCode; name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_valences"]["Insert"]>;
+        Relationships: [];
+      };
+      content_regions: {
+        Row: { code: string; name: string; display_order: number; active: boolean };
+        Insert: { code: string; name: string; display_order: number; active?: boolean };
+        Update: Partial<Database["public"]["Tables"]["content_regions"]["Insert"]>;
+        Relationships: [];
+      };
       songs: {
         Row: {
           id: string;
@@ -130,6 +162,11 @@ export type Database = {
           era_code: string;
           song_story: string | null;
           context: string | null;
+          energy_code: EnergyCode | null;
+          valence_code: ValenceCode | null;
+          classification_confidence: number | null;
+          classification_source: ClassificationSource | null;
+          classification_review_status: ClassificationReviewStatus;
           thumbnail_url: string | null;
           embed_status: EmbedStatus;
           last_checked_at: string | null;
@@ -157,6 +194,11 @@ export type Database = {
           era_code: string;
           song_story?: string | null;
           context?: string | null;
+          energy_code?: EnergyCode | null;
+          valence_code?: ValenceCode | null;
+          classification_confidence?: number | null;
+          classification_source?: ClassificationSource | null;
+          classification_review_status?: ClassificationReviewStatus;
           thumbnail_url?: string | null;
           embed_status?: EmbedStatus;
           last_checked_at?: string | null;
@@ -245,6 +287,24 @@ export type Database = {
             referencedColumns: ["code"];
           },
         ];
+      };
+      song_regions: {
+        Row: { song_id: string; region_code: string; created_at: string };
+        Insert: { song_id: string; region_code: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["song_regions"]["Insert"]>;
+        Relationships: [];
+      };
+      song_classification_suggestions: {
+        Row: { id: string; song_id: string; suggested_moods: string[]; suggested_occasions: string[]; suggested_energy_code: EnergyCode | null; suggested_valence_code: ValenceCode | null; suggested_regions: string[]; confidence: number; source: "AI-suggested"; review_status: "pending" | "approved" | "rejected"; reviewed_by: string | null; reviewed_at: string | null; created_at: string };
+        Insert: { id?: string; song_id: string; suggested_moods?: string[]; suggested_occasions?: string[]; suggested_energy_code?: EnergyCode | null; suggested_valence_code?: ValenceCode | null; suggested_regions?: string[]; confidence: number; source?: "AI-suggested"; review_status?: "pending" | "approved" | "rejected"; reviewed_by?: string | null; reviewed_at?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["song_classification_suggestions"]["Insert"]>;
+        Relationships: [];
+      };
+      mood_assistant_generations: {
+        Row: { id: string; session_hash: string; normalized_intent: Record<string, unknown>; provider_mode: "provider" | "fallback"; status: "generated" | "clarification" | "empty" | "failed"; result_count: number; playlist_duration_seconds: number; total_ms: number; created_at: string };
+        Insert: { id: string; session_hash: string; normalized_intent?: Record<string, unknown>; provider_mode: "provider" | "fallback"; status: "generated" | "clarification" | "empty" | "failed"; result_count?: number; playlist_duration_seconds?: number; total_ms?: number; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["mood_assistant_generations"]["Insert"]>;
+        Relationships: [];
       };
       catalogue_admin_events: {
         Row: { id: string; action: "channel_unlinked" | "song_soft_deleted" | "assignment_moved"; song_id: string | null; channel_id: string | null; actor_id: string | null; details: Record<string, unknown>; created_at: string };
@@ -707,6 +767,10 @@ export type Database = {
       move_channel_song: {
         Args: { p_assignment_id: string; p_target_channel_id: string; p_sequence: number; p_actor_id: string };
         Returns: Record<string, unknown>;
+      };
+      get_mood_assistant_candidates: {
+        Args: { p_languages?: string[]; p_eras?: string[]; p_singers?: string[]; p_composers?: string[]; p_require_duration?: boolean; p_limit?: number };
+        Returns: Array<Record<string, unknown>>;
       };
     };
     Enums: {

@@ -10,7 +10,7 @@ import { trackRadioEvent } from "@/lib/radio/analytics";
 import { createShuffleState, nextShuffledSong, previousShuffledSong, readShufflePreference, writeShufflePreference, type ShuffleState } from "@/lib/radio/shuffle";
 import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "@/config/brand";
 import { readMigratedStorageValue } from "@/lib/storage/migrate";
-import type { Channel, ChannelSlug } from "@/types/radio";
+import type { Channel, ChannelSlug, Song } from "@/types/radio";
 import type { PlayerVisibilitySnapshot } from "@/types/youtube";
 import { resolveLiveVisibilityDecision } from "@/lib/radio/visibility";
 
@@ -138,6 +138,24 @@ function findPlayableChannel(channels: Channel[], preferred: Channel, mode: Play
   return { channel: preferred, queue: preferredQueue, fallbackReason: `${preferred.name} is temporarily unavailable.` };
 }
 
+function assistantChannel(songs: Song[]): Channel {
+  return {
+    id: null,
+    slug: "mood-assistant",
+    mode: "on_demand",
+    scheduled: false,
+    languageCode: songs[0]?.languageCode ?? "multi",
+    name: "Mood Assistant",
+    teluguName: "మీ మూడ్ ప్లేలిస్ట్",
+    strapline: "A session playlist selected from the verified CassettePlay catalogue.",
+    mood: "Personal mix",
+    backgroundImageUrl: null,
+    schedule: { startHour: 0, endHour: 0 },
+    palette: { from: "#171717", via: "#164e63", to: "#3f3f46", accent: "#fbbf24" },
+    songs,
+  };
+}
+
 export function useRadioPlayer(now: Date, availableChannels: Channel[] = localChannels) {
   const scheduledChannel = useMemo(() => getScheduledChannel(now, availableChannels), [availableChannels, now]);
   const [playbackState, dispatch] = useReducer(playbackReducer, initialPlaybackState);
@@ -157,6 +175,9 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
   const [resumeRequired, setResumeRequired] = useState(false);
+  const [assistantSongs, setAssistantSongs] = useState<Song[]>([]);
+  const [assistantGenerationId, setAssistantGenerationId] = useState<string | null>(null);
+  const [assistantPlayedIds, setAssistantPlayedIds] = useState<string[]>([]);
   const currentPositionRef = useRef(0);
   const lastHandledEndedKeyRef = useRef<string | null>(null);
   const failedQueueEntryIdsRef = useRef<Set<string>>(new Set());
@@ -168,11 +189,15 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const didRestorePlaybackRef = useRef(false);
   const didRestoreVolumeRef = useRef(false);
   const playerReadyRef = useRef(false);
+  const assistantPlayedIdsRef = useRef<Set<string>>(new Set());
 
-  const selectedChannel = useMemo(() => getChannelBySlug(channelSlug, availableChannels), [availableChannels, channelSlug]);
+  const selectedChannel = useMemo(
+    () => playbackMode === "assistant" ? assistantChannel(assistantSongs) : getChannelBySlug(channelSlug, availableChannels),
+    [assistantSongs, availableChannels, channelSlug, playbackMode],
+  );
   const selectedChannelReference = selectedChannel.id;
   const scheduledChannelReference = scheduledChannel.id;
-  const queueMode = playbackMode === "manual" ? "manual" : "live";
+  const queueMode = playbackMode === "live" ? "live" : "manual";
   const activeQueue = useMemo(() => buildChannelQueue(selectedChannel, queueMode), [queueMode, selectedChannel]);
   const requestedTrackIndex = activeQueue.items.findIndex((item) => item.assignmentId === currentQueueEntryId);
   const trackIndex = requestedTrackIndex >= 0 ? requestedTrackIndex : 0;
@@ -185,7 +210,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     const channelKey = selectedChannel.id ?? selectedChannel.slug;
     const previous = recentQueueEntriesRef.current.channelKey === channelKey ? recentQueueEntriesRef.current.ids : [];
     recentQueueEntriesRef.current = { channelKey, ids: [...previous.filter((id) => id !== song.assignmentId), song.assignmentId].slice(-5) };
-  }, [selectedChannel.id, selectedChannel.slug, song]);
+  }, [playbackMode, selectedChannel.id, selectedChannel.slug, song]);
 
   useEffect(() => {
     availableChannels.forEach((channel, index) => {
@@ -208,6 +233,10 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
           : null;
 
       setPlaybackMode("live");
+      setAssistantSongs([]);
+      setAssistantGenerationId(null);
+      assistantPlayedIdsRef.current = new Set();
+      setAssistantPlayedIds([]);
       setManualStartedScheduleSlug(null);
       setListenerOffset(false);
       setChannelSlug(playable.channel.slug);
@@ -336,12 +365,17 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
   const loadIndex = useCallback(
     (index: number, nextSeekSeconds = 0) => {
       const boundedIndex = activeQueue.items.length > 0 ? ((index % activeQueue.items.length) + activeQueue.items.length) % activeQueue.items.length : 0;
-      setCurrentQueueEntryId(activeQueue.items[boundedIndex]?.assignmentId ?? null);
+      const nextItem = activeQueue.items[boundedIndex];
+      setCurrentQueueEntryId(nextItem?.assignmentId ?? null);
+      if (playbackMode === "assistant" && nextItem) {
+        assistantPlayedIdsRef.current.add(nextItem.id);
+        setAssistantPlayedIds((current) => current.includes(nextItem.id) ? current : [...current, nextItem.id]);
+      }
       setSeekSeconds(nextSeekSeconds);
       setSeekRevision((current) => current + 1);
-      dispatch({ type: "NEXT", songId: activeQueue.items[boundedIndex]?.id ?? "" });
+      dispatch({ type: "NEXT", songId: nextItem?.id ?? "" });
     },
-    [activeQueue.items],
+    [activeQueue.items, playbackMode],
   );
 
   const selectChannel = useCallback(
@@ -352,6 +386,10 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       window.localStorage.removeItem(STORAGE_KEY);
       setHasUserInteracted(true);
       setPlaybackMode("manual");
+      setAssistantSongs([]);
+      setAssistantGenerationId(null);
+      assistantPlayedIdsRef.current = new Set();
+      setAssistantPlayedIds([]);
       setManualStartedScheduleSlug(scheduledChannel.slug);
       setListenerOffset(false);
       setChannelSlug(nextChannelSlug);
@@ -392,6 +430,44 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     syncToLive("return");
   }, [syncToLive]);
 
+  const activateAssistantQueue = useCallback((nextSongs: Song[], generationId: string) => {
+    const uniqueSongs = nextSongs
+      .filter((candidate) => candidate.active !== false && candidate.embedStatus === "available" && /^[A-Za-z0-9_-]{11}$/.test(candidate.youtubeVideoId))
+      .filter((candidate, index, all) => all.findIndex((item) => item.id === candidate.id) === index);
+    const preservedCurrent = playbackMode === "assistant" ? song : null;
+    const played = assistantPlayedIdsRef.current;
+    const queue = [
+      ...(preservedCurrent ? [preservedCurrent] : []),
+      ...uniqueSongs.filter((candidate) => candidate.id !== preservedCurrent?.id && !played.has(candidate.id)),
+    ];
+
+    window.localStorage.removeItem(STORAGE_KEY);
+    setHasUserInteracted(true);
+    setPlaybackMode("assistant");
+    setManualStartedScheduleSlug(scheduledChannel.slug);
+    setListenerOffset(false);
+    setChannelSlug("mood-assistant");
+    setAssistantSongs(queue);
+    setAssistantGenerationId(generationId);
+    if (!preservedCurrent) {
+      assistantPlayedIdsRef.current = new Set(queue[0] ? [queue[0].id] : []);
+      setAssistantPlayedIds(queue[0] ? [queue[0].id] : []);
+      setCurrentQueueEntryId(queue[0]?.assignmentId ?? null);
+      setSeekSeconds(0);
+      setSeekRevision((current) => current + 1);
+    }
+    failedQueueEntryIdsRef.current = new Set();
+    shuffleStateRef.current = null;
+    setShuffleEnabled(false);
+    setAutoplayBlocked(false);
+    setResumeRequired(false);
+    setPlaybackNotice(null);
+    setIsPlaying(queue.length > 0);
+    dispatch(queue.length > 0
+      ? { type: "CHANNEL_CHANGED", songId: preservedCurrent?.id ?? queue[0]?.id ?? null }
+      : { type: "QUEUE_EMPTY" });
+  }, [playbackMode, scheduledChannel.slug, song]);
+
   const togglePlayback = useCallback(() => {
     setHasUserInteracted(true);
     setResumeRequired(false);
@@ -424,6 +500,9 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
         setHasUserInteracted(true);
         if (playbackMode === "live") setListenerOffset(true);
         failedQueueEntryIdsRef.current = new Set();
+        if (playbackMode === "assistant" && assistantGenerationId && song) {
+          trackRadioEvent("assistant_song_skipped", { generation_id: assistantGenerationId, song_id: song.id, reason: "next" });
+        }
       }
       let nextIndex = getAdjacentQueueIndex(activeQueue.items, song?.assignmentId ?? null, direction);
       if (shuffleEnabled && activeQueue.items.length > 1) {
@@ -440,13 +519,14 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       }
       loadIndex(nextIndex, 0);
     },
-    [activeQueue.items, loadIndex, playbackMode, selectedChannel.id, selectedChannel.slug, shuffleEnabled, song?.assignmentId],
+    [activeQueue.items, assistantGenerationId, loadIndex, playbackMode, selectedChannel.id, selectedChannel.slug, shuffleEnabled, song],
   );
 
   const nextTrack = useCallback(() => advanceQueue(1, true), [advanceQueue]);
   const previousTrack = useCallback(() => advanceQueue(-1, true), [advanceQueue]);
 
   const toggleShuffle = useCallback(() => {
+    if (playbackMode === "assistant") return;
     if (activeQueue.items.length <= 1) return;
     const enabled = !shuffleEnabled;
     writeShufflePreference(window.localStorage, enabled);
@@ -466,7 +546,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       previous_mode: shuffleEnabled ? "shuffle" : "normal",
       new_mode: enabled ? "shuffle" : "normal",
     });
-  }, [activeQueue.items, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song?.assignmentId]);
+  }, [activeQueue.items, playbackMode, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song?.assignmentId]);
 
   const handleEnded = useCallback(() => {
     if (!song) {
@@ -509,6 +589,9 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       youtube_error_category: code === 2 ? "invalid_parameter" : code === 5 ? "html5_error" : code === 100 ? "not_found" : code === 101 || code === 150 ? "embedding_disabled" : "unknown",
       recovery_success: !exhausted,
     });
+    if (playbackMode === "assistant" && assistantGenerationId) {
+      trackRadioEvent("assistant_song_skipped", { generation_id: assistantGenerationId, song_id: song.id, reason: "player_error" });
+    }
 
     if (exhausted) {
       setIsPlaying(false);
@@ -542,7 +625,7 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
       }
       offset += 1;
     }
-  }, [activeQueue.items, loadIndex, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song, trackIndex]);
+  }, [activeQueue.items, assistantGenerationId, loadIndex, playbackMode, selectedChannel.id, selectedChannel.slug, selectedChannelReference, shuffleEnabled, song, trackIndex]);
 
   const handlePlayerReady = useCallback(() => {
     if (playerReadyRef.current) return;
@@ -657,13 +740,17 @@ export function useRadioPlayer(now: Date, availableChannels: Channel[] = localCh
     playbackNotice,
     autoplayBlocked,
     resumeRequired,
+    assistantGenerationId,
+    assistantQueueIds: playbackMode === "assistant" ? activeQueue.items.map((item) => item.id) : [],
+    assistantPlayedIds,
     shuffleEnabled,
-    shuffleAvailable: activeQueue.items.length > 1,
+    shuffleAvailable: playbackMode !== "assistant" && activeQueue.items.length > 1,
     manualChannelSlug: playbackMode === "manual" ? selectedChannel.slug : null,
     listenerOffset,
     pendingScheduledSwitch,
     fallbackReason,
     setVolume,
+    activateAssistantQueue,
     selectChannel,
     resumeSchedule,
     togglePlayback,

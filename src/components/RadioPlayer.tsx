@@ -20,6 +20,7 @@ import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { LiveListenerCount } from "@/components/presence/LiveListenerCount";
 import { useListenerPresence } from "@/hooks/useListenerPresence";
 import { BRAND } from "@/config/brand";
+import { MoodAssistant } from "@/components/MoodAssistant";
 
 export function RadioPlayer() {
   const { now, formattedTime, formattedDate } = useIndiaTime();
@@ -174,7 +175,7 @@ export function RadioPlayer() {
                 <span className="w-10 text-right tabular-nums">{radio.volume}%</span>
               </label>
 
-              {radio.manualChannelSlug || radio.listenerOffset ? (
+              {radio.manualChannelSlug || radio.listenerOffset || radio.playbackMode === "assistant" ? (
                 <button
                   type="button"
                   onClick={radio.resumeSchedule}
@@ -266,10 +267,17 @@ export function RadioPlayer() {
                 </div>
                 <div>
                   <dt className="text-white/48">Playback mode</dt>
-                  <dd className="font-semibold">{radio.playbackMode === "live" ? "Scheduled live" : "Manual sequential"}</dd>
+                  <dd className="font-semibold">{radio.playbackMode === "live" ? "Scheduled live" : radio.playbackMode === "assistant" ? "Mood Assistant" : "Manual sequential"}</dd>
                 </div>
               </dl>
             </section>
+
+            <MoodAssistant
+              active={radio.playbackMode === "assistant"}
+              currentQueueIds={radio.assistantQueueIds}
+              playedSongIds={radio.assistantPlayedIds}
+              onActivate={radio.activateAssistantQueue}
+            />
 
             <ChannelSelector
               channels={radio.channels}

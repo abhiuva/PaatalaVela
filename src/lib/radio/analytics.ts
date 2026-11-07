@@ -19,6 +19,7 @@ const eventMap: Record<string, AnalyticsEventName> = {
   channel_selected: "channel_selected",
   listening_duration_recorded: "listening_duration_recorded",
   shuffle_mode_changed: "shuffle_mode_changed",
+  assistant_song_skipped: "assistant_song_skipped",
 };
 
 export function trackRadioEvent(event: keyof typeof eventMap, properties: Record<string, string | number | boolean | null> = {}) {

@@ -313,4 +313,49 @@ describe("useRadioPlayer channel lifecycle", () => {
     act(() => result.current.handlePlayerReady());
     expect(result.current.playbackStatus).toBe("playing");
   });
+
+  it("plays an assistant queue through the existing next and previous controls", async () => {
+    const channels = [channel(ids[0], "first", [song("live", 1)])];
+    const assistantSongs = [song("a", 1), song("b", 2), song("c", 3)];
+    const { result } = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    await waitFor(() => expect(result.current.song).not.toBeNull());
+    act(() => result.current.activateAssistantQueue(assistantSongs, "40000000-0000-4000-8000-000000000001"));
+    expect(result.current.playbackMode).toBe("assistant");
+    expect(result.current.channel.name).toBe("Mood Assistant");
+    expect(result.current.song?.id).toBe("a");
+    expect(result.current.isPlaying).toBe(true);
+    act(() => result.current.nextTrack());
+    expect(result.current.song?.id).toBe("b");
+    act(() => result.current.previousTrack());
+    expect(result.current.song?.id).toBe("a");
+  });
+
+  it("refines the assistant queue without restarting current or replaying history", async () => {
+    const channels = [channel(ids[0], "first", [song("live", 1)])];
+    const { result } = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    await waitFor(() => expect(result.current.song).not.toBeNull());
+    act(() => result.current.activateAssistantQueue([song("a", 1), song("b", 2), song("c", 3)], "40000000-0000-4000-8000-000000000001"));
+    act(() => result.current.nextTrack());
+    const revision = result.current.seekRevision;
+    expect(result.current.song?.id).toBe("b");
+    act(() => result.current.activateAssistantQueue([song("a", 1), song("b", 2), song("d", 3), song("e", 4)], "40000000-0000-4000-8000-000000000002"));
+    expect(result.current.song?.id).toBe("b");
+    expect(result.current.seekRevision).toBe(revision);
+    expect(result.current.queue.items.map((item) => item.id)).toEqual(["b", "d", "e"]);
+    act(() => result.current.nextTrack());
+    expect(result.current.song?.id).toBe("d");
+  });
+
+  it("returns from assistant mode to the authoritative scheduled queue", async () => {
+    const channels = [channel(ids[0], "first", [song("live", 1)])];
+    const { result } = renderHook(() => useRadioPlayer(new Date("2026-08-23T06:00:00+05:30"), channels));
+    await waitFor(() => expect(result.current.song).not.toBeNull());
+    act(() => result.current.activateAssistantQueue([song("a", 1)], "40000000-0000-4000-8000-000000000001"));
+    expect(result.current.playbackMode).toBe("assistant");
+    act(() => result.current.resumeSchedule());
+    expect(result.current.playbackMode).toBe("live");
+    expect(result.current.channel.slug).toBe("first");
+    expect(result.current.song?.id).toBe("live");
+    expect(result.current.assistantQueueIds).toEqual([]);
+  });
 });

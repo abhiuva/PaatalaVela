@@ -1,7 +1,9 @@
 export const languageCodes = ["te", "en", "hi", "ta", "ml"] as const;
 export const eraCodes = ["pre-1980", "1980s", "1990s", "2000s", "2010s", "2020s"] as const;
-export const moodCodes = ["devotional", "peaceful", "nostalgic", "uplifting", "romantic", "melancholic", "energetic", "celebratory", "reflective"] as const;
-export const occasionCodes = ["morning", "prayer", "tea-time", "afternoon", "evening", "celebration", "driving", "late-night"] as const;
+export const moodCodes = ["happy", "sad", "breakup", "romantic", "nostalgic", "peaceful", "devotional", "energetic", "celebratory", "reflective", "melancholic", "uplifting"] as const;
+export const occasionCodes = ["rain", "driving", "party", "work", "workout", "sleep", "morning", "afternoon", "evening", "late-night", "prayer", "celebration", "tea-time"] as const;
+export const energyCodes = ["low", "medium", "high"] as const;
+export const valenceCodes = ["negative", "neutral", "positive"] as const;
 
 export const languageOptions = [
   { code: "te", name: "Telugu" },
@@ -21,6 +23,9 @@ export const eraOptions = [
 ] as const;
 
 export const moodOptions = [
+  { code: "happy", name: "Happy" },
+  { code: "sad", name: "Sad" },
+  { code: "breakup", name: "Breakup" },
   { code: "devotional", name: "Devotional" },
   { code: "peaceful", name: "Peaceful" },
   { code: "nostalgic", name: "Nostalgic" },
@@ -33,6 +38,11 @@ export const moodOptions = [
 ] as const;
 
 export const occasionOptions = [
+  { code: "rain", name: "Rain" },
+  { code: "party", name: "Party" },
+  { code: "work", name: "Work" },
+  { code: "workout", name: "Workout" },
+  { code: "sleep", name: "Sleep" },
   { code: "morning", name: "Morning" },
   { code: "prayer", name: "Prayer" },
   { code: "tea-time", name: "Tea time" },
@@ -47,6 +57,8 @@ export type LanguageCode = (typeof languageCodes)[number];
 export type EraCode = (typeof eraCodes)[number];
 export type MoodCode = (typeof moodCodes)[number];
 export type OccasionCode = (typeof occasionCodes)[number];
+export type EnergyCode = (typeof energyCodes)[number];
+export type ValenceCode = (typeof valenceCodes)[number];
 
 export function eraForYear(year: number): EraCode {
   if (year < 1980) return "pre-1980";

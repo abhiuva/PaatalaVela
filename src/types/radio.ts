@@ -20,6 +20,9 @@ export type Song = {
   eraCode: string;
   moods: string[];
   occasions: string[];
+  energy?: "low" | "medium" | "high" | null;
+  valence?: "negative" | "neutral" | "positive" | null;
+  regions?: string[];
   youtubeVideoId: string;
   durationSeconds: number | null;
   sequence?: number;

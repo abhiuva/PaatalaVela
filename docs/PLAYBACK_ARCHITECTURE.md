@@ -6,6 +6,10 @@ Scheduled live mode is the default. The active channel is chosen from Asia/Kolka
 
 Manual mode starts when a listener selects a channel. It starts at the first queue item, advances sequentially, and persists the manual channel, song, position, volume, muted state, and timestamp in local storage. Manual state expires after 12 hours and is cleared at the next schedule boundary.
 
+Assistant mode starts only when a listener selects Play on a generated Mood Assistant playlist. Its queue is session-scoped, is not written to local storage, and uses the same reducer, controls, visible iframe, ended-event guard, and error recovery as other modes. Refinement preserves the current song and excludes completed song IDs. Returning to live clears the assistant queue and recalculates the scheduled position.
+
+On-demand YouTube Live mode remains independent when a channel provides that source. Mood Assistant does not create a second player or alter scheduled/manual queue construction.
+
 ## Queue
 
 `buildChannelQueue(channel)` is the only queue builder. It:
@@ -22,6 +26,8 @@ Manual mode starts when a listener selects a channel. It starts at the first que
 `playbackReducer` models `idle`, `loading`, `ready`, `playing`, `paused`, `transitioning`, `error`, and `exhausted`.
 
 Duplicate YouTube `ENDED` events are guarded in the hook and reducer so one song end advances exactly one queue position. Player errors skip one ordered song and stop only when the queue is exhausted.
+
+In assistant mode, player errors and listener skips advance within the generated queue and emit privacy-safe `assistant_song_skipped` analytics. Internal recommendation scores, confidence, listener text, and song titles are not included.
 
 ## YouTube Sync
 

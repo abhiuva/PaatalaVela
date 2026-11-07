@@ -1,6 +1,6 @@
 import type { Channel, Song } from "@/types/radio";
 
-export type PlaybackMode = "live" | "manual";
+export type PlaybackMode = "live" | "manual" | "assistant" | "youtube_live";
 
 export type QueueWarning = {
   type: "duplicate_sequence" | "missing_duration" | "empty_queue";
